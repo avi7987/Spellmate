@@ -2,27 +2,39 @@ class_name PieceModelFactory
 extends RefCounted
 ## Builds the character models.
 ##
-## TODAY: placeholder "chibi" characters assembled from rounded shapes, already
-## using the shared Style materials so they match the final look.
-## LATER: drop a real model at res://assets/characters/<kind_name>.glb
-## (e.g. king.glb) and it is used automatically instead of the placeholder,
-## then recoloured per team by its material names (see _apply_team_colors).
+## Which model plays which piece is set in res://data/characters.json
+## (model file, visible props, size, and animation names). Today those are
+## KayKit characters (CC0) recoloured per team by tools/recolor_textures.py.
+## If a model is missing, a simple placeholder made of shapes is used instead.
 ##
-## Model conventions: feet at the origin, facing +Z, about 1.1 units tall.
+## Model conventions: feet at the origin, facing +Z.
+## The returned node carries metadata:
+##   "anims": Dictionary  (idle/move/attack/cast/hit/death/victory -> animation name)
+##   "player": AnimationPlayer or null
 
+const DATA_PATH := "res://data/characters.json"
 const KIND_NAMES := {
 	Chess.Kind.PAWN: "pawn", Chess.Kind.KNIGHT: "knight", Chess.Kind.BISHOP: "bishop",
 	Chess.Kind.ROOK: "rook", Chess.Kind.QUEEN: "queen", Chess.Kind.KING: "king",
 }
+const TEAM_SUFFIX := { Chess.WHITE: "light", Chess.BLACK: "shadow" }
+
+static var _defs: Dictionary = {}
+static var _materials: Dictionary = {}
+
+
+static func definition(kind: int) -> Dictionary:
+	if _defs.is_empty():
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
+		_defs = parsed if parsed is Dictionary else { "_": {} }
+	return _defs.get(KIND_NAMES[kind], {})
 
 
 static func build(kind: int, color: int) -> Node3D:
-	var path := "res://assets/characters/%s.glb" % KIND_NAMES[kind]
-	if ResourceLoader.exists(path):
-		var scene: PackedScene = load(path)
-		var model := scene.instantiate() as Node3D
-		_apply_team_colors(model, color)
-		return model
+	var def := definition(kind)
+	var path: String = def.get("model", "")
+	if path != "" and ResourceLoader.exists(path):
+		return _build_from_model(def, kind, color)
 	var root := Node3D.new()
 	root.name = "Placeholder_" + KIND_NAMES[kind]
 	match kind:
@@ -32,24 +44,88 @@ static func build(kind: int, color: int) -> Node3D:
 		Chess.Kind.BISHOP: _wizard(root, color)
 		Chess.Kind.KNIGHT: _dragon(root, color)
 		Chess.Kind.PAWN: _shieldbearer(root, color)
+	root.set_meta("anims", {})
+	root.set_meta("player", null)
 	return root
 
 
-## Real models name their materials "team_metal", "team_cloth", "team_accent".
-static func _apply_team_colors(node: Node, color: int) -> void:
-	var t := Style.team(color)
-	if node is MeshInstance3D:
-		var mi := node as MeshInstance3D
-		for i in mi.mesh.get_surface_count():
-			var mat := mi.mesh.surface_get_material(i)
-			if mat == null:
-				continue
-			match mat.resource_name:
-				"team_metal": mi.set_surface_override_material(i, Style.metal(t["metal"]))
-				"team_cloth": mi.set_surface_override_material(i, Style.cloth(t["cloth"]))
-				"team_accent": mi.set_surface_override_material(i, Style.cloth(t["accent"]))
-	for c in node.get_children():
-		_apply_team_colors(c, color)
+static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
+	var model := (load(def["model"]) as PackedScene).instantiate() as Node3D
+	var shown: Array = def.get("show", [])
+	var mat := _team_material(def, color)
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var is_prop: bool = mi.get_parent() is BoneAttachment3D
+		mi.visible = not is_prop or shown.has(String(mi.name))
+		if mat != null:
+			mi.material_override = mat
+	if def.get("crown", false):
+		_add_crown(model, color)
+	var s := float(def.get("scale", 0.5))
+	model.scale = Vector3.ONE * s
+	var anims := {}
+	for key in ["idle", "move", "attack", "cast", "hit", "death", "victory"]:
+		if def.has(key):
+			anims[key] = def[key]
+	var players := model.find_children("*", "AnimationPlayer", true, false)
+	model.set_meta("anims", anims)
+	model.set_meta("player", players[0] if players.size() > 0 else null)
+	return model
+
+
+## One shared material per (texture, team): toon shading + outline, like the rest of the game.
+static func _team_material(def: Dictionary, color: int) -> Material:
+	var tex_name: String = def.get("texture", "")
+	if tex_name == "":
+		return null
+	var suffix: String = TEAM_SUFFIX[color]
+	if def.get("king_texture", false):
+		suffix += "_king"
+	var folder: String = String(def["model"]).get_base_dir()
+	var tex_path := "%s/%s_%s.png" % [folder, tex_name, suffix]
+	if _materials.has(tex_path):
+		return _materials[tex_path]
+	if not ResourceLoader.exists(tex_path):
+		return null
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(tex_path)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	m.roughness = 0.6
+	m.metallic_specular = 0.25
+	m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	m.rim_enabled = true
+	m.rim = 0.3
+	m.rim_tint = 0.5
+	var o := ShaderMaterial.new()
+	o.shader = Style.OUTLINE_SHADER
+	o.set_shader_parameter("outline_color", Style.OUTLINE)
+	o.set_shader_parameter("thickness", 0.02)
+	m.next_pass = o
+	_materials[tex_path] = m
+	return m
+
+
+## A big gold crown with gems on the head bone (KayKit has none, so we build one).
+static func _add_crown(model: Node3D, color: int) -> void:
+	var head: BoneAttachment3D = null
+	for b in model.find_children("*", "BoneAttachment3D", true, false):
+		if b.bone_name == "head":
+			head = b
+	if head == null:
+		return
+	var crown := Node3D.new()
+	crown.name = "Crown"
+	crown.position = Vector3(0, 0.95, 0)
+	head.add_child(crown)
+	var gold := Style.metal(Color(1.0, 0.78, 0.2) if color == Chess.WHITE else Color(0.85, 0.62, 0.2))
+	_add(crown, _cyl(0.42, 0.38, 0.28), gold, Vector3.ZERO)
+	for i in 6:
+		var a := TAU * i / 6.0
+		_add(crown, _cyl(0.0, 0.11, 0.28), gold, Vector3(sin(a) * 0.36, 0.26, cos(a) * 0.36))
+		_add(crown, _sphere(0.05), gold, Vector3(sin(a) * 0.36, 0.42, cos(a) * 0.36))
+	var gem := Style.glow(Style.team(color)["cloth"].lightened(0.2), 1.2)
+	_add(crown, _sphere(0.09), gem, Vector3(0, 0.02, 0.4))
+	_add(crown, _sphere(0.07), gem, Vector3(0.38, 0.02, 0.12))
+	_add(crown, _sphere(0.07), gem, Vector3(-0.38, 0.02, 0.12))
 
 
 # ------------------------------------------------------------ shape helpers

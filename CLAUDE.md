@@ -24,6 +24,14 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
 - `ai/ai_player.gd` – alpha-beta over legal actions (moves + powers).
 - `ui/` – `Hud` (built in code), `UiKit` (cartoon widgets), `Texts` (all Hebrew strings).
 
+## Art assets
+- Characters: KayKit Adventurers (CC0) in `assets/characters/kaykit/`. Which model plays which
+  piece, visible props, scale and animation names: `data/characters.json`.
+  Team colours = recoloured textures made by `tools/recolor_textures.py` (`*_light.png`, `*_shadow.png`).
+- Scenery: KayKit Medieval Hexagon (CC0) in `assets/environment/kaykit/`, placed by `presentation/scenery.gd`.
+- Only GitHub and package registries are reachable from cloud sessions (itch.io etc. are blocked).
+- Still missing: a dragon for the knight piece (currently the Rogue model).
+
 ## Rules decisions
 - Using a power replaces the move. Energy: +1 at the start of each own turn, +1 per capture, max 10.
 - A power may never leave the own king in check and never affects a king.

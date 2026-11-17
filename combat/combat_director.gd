@@ -24,7 +24,7 @@ func play_capture(attacker: PieceView, victim: PieceView, at: Vector3) -> void:
 	combat_started.emit()
 	if mode != Mode.OFF and victim != null:
 		if attacker != null:
-			attacker.bounce()
+			await attacker.play_action("attack", 0.55)
 		Effects.square_flash(board, at, Color(1, 1, 1, 0.8), 0.3)
 		Effects.burst(board, at + Vector3(0, 0.4, 0), Color(1.0, 0.85, 0.3), 26, 3.0)
 		Effects.ring(board, at, Color(1, 0.6, 0.2, 0.9))

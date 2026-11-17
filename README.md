@@ -33,3 +33,7 @@
 1. מורידים את [Godot 4.7](https://godotengine.org/download) (חינמי).
 2. ב-Godot לוחצים Import ובוחרים את הקובץ `project.godot` מהתיקייה הזו.
 3. לוחצים ▶ (F5) כדי לשחק.
+
+## קרדיטים
+
+דמויות ונוף: [KayKit](https://kaylousberg.com) מאת Kay Lousberg (רישיון CC0). גופן: Rubik (רישיון OFL).

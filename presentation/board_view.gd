@@ -19,6 +19,7 @@ var _fx_root: Node3D
 var _lava_root: Node3D
 var _pieces_root: Node3D
 var _facing_yaw := 0.0
+var _scenery: Scenery
 
 
 static func square_to_world(s: int) -> Vector3:
@@ -66,7 +67,8 @@ func _build_board() -> void:
 			Style.matte(c))
 		_tiles.append(tile)
 	_build_coordinates()
-	_build_decorations()
+	_scenery = Scenery.new()
+	add_child(_scenery)
 
 
 func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
@@ -100,29 +102,6 @@ func _coord_label(text: String, pos: Vector3) -> void:
 	add_child(l)
 
 
-## Bushes and flowers around the board (fixed seed so it always looks the same).
-func _build_decorations() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	var bush := Style.toon(Color(0.25, 0.55, 0.25), 0, 0.9)
-	var colors := [Color(1, 0.45, 0.6), Color(1, 0.9, 0.3), Color(0.6, 0.6, 1.0), Color(1, 1, 1)]
-	for i in 70:
-		var a := rng.randf() * TAU
-		var d := rng.randf_range(5.6, 10.0)
-		var pos := Vector3(cos(a) * d, -0.3, sin(a) * d)
-		if absf(pos.x) < 5.2 and absf(pos.z) < 5.2:
-			continue
-		var mi := MeshInstance3D.new()
-		var sp := SphereMesh.new()
-		var big := rng.randf() < 0.4
-		sp.radius = rng.randf_range(0.3, 0.6) if big else 0.09
-		sp.height = sp.radius * 1.6
-		mi.mesh = sp
-		mi.material_override = bush if big else Style.matte(colors[rng.randi() % colors.size()])
-		mi.position = pos
-		add_child(mi)
-
-
 # ------------------------------------------------------------ pieces
 
 func sync(state: GameState) -> void:
@@ -153,6 +132,7 @@ func sync(state: GameState) -> void:
 
 func set_facing(yaw: float) -> void:
 	_facing_yaw = yaw
+	_scenery.set_facing(yaw)
 	for v in _pieces.values():
 		var tw: Tween = v.create_tween()
 		tw.tween_property(v, "rotation_degrees:y", yaw, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
@@ -290,10 +270,9 @@ func play_events(events: Array, state: GameState) -> void:
 					await pv.pop_in()
 			"ability":
 				var caster := view_of(e["piece_id"])
-				if caster != null:
-					caster.bounce()
 				Effects.ring(_fx_root, square_to_world(e["from"]), Style.HL_ABILITY, 1.4, 0.5)
-				await get_tree().create_timer(0.25).timeout
+				if caster != null:
+					await caster.play_action("cast", 0.5)
 			"shield":
 				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(0.5, 0.8, 1.0), 20, 2.0)
 			"freeze":

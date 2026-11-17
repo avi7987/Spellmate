@@ -21,6 +21,9 @@ var color: int = Chess.WHITE
 var _lean: Node3D
 var _hop: Node3D
 var _model: Node3D
+var _player: AnimationPlayer
+var _anims: Dictionary = {}
+var _dying := false
 var _shield_fx: MeshInstance3D
 var _ice_fx: MeshInstance3D
 var _base: MeshInstance3D
@@ -63,8 +66,48 @@ func _build_model(new_kind: int) -> void:
 		_model.queue_free()
 	kind = new_kind
 	_model = PieceModelFactory.build(kind, color)
-	_model.scale = Vector3.ONE * 0.85
+	_anims = _model.get_meta("anims", {})
+	_player = _model.get_meta("player", null)
+	if _player == null:
+		_model.scale = Vector3.ONE * 0.85  # placeholder shapes
 	_hop.add_child(_model)
+	_play_idle(true)
+
+
+## True when this character has real animations (not a placeholder).
+func is_animated() -> bool:
+	return _player != null
+
+
+func _play_idle(random_start: bool = false) -> void:
+	if _player == null or not _anims.has("idle"):
+		return
+	var anim: Animation = _player.get_animation(_anims["idle"])
+	if anim == null:
+		return
+	anim.loop_mode = Animation.LOOP_LINEAR
+	_player.play(_anims["idle"], 0.25)
+	if random_start:
+		_player.seek(randf() * anim.length, true)
+
+
+## Plays a one-shot animation by role ("attack", "cast", "hit", ...).
+## Waits `wait_fraction` of it, then returns (the rest keeps playing).
+func play_action(role: String, wait_fraction: float = 1.0, back_to_idle: bool = true) -> void:
+	if _player == null or not _anims.has(role) or not _player.has_animation(_anims[role]):
+		await bounce()
+		return
+	var name: String = _anims[role]
+	var anim := _player.get_animation(name)
+	anim.loop_mode = Animation.LOOP_NONE
+	_player.play(name, 0.15)
+	await get_tree().create_timer(anim.length * wait_fraction).timeout
+	if back_to_idle and wait_fraction >= 1.0:
+		_play_idle()
+	elif back_to_idle:
+		# Return to idle when the animation really ends, without blocking.
+		get_tree().create_timer(anim.length * (1.0 - wait_fraction)).timeout.connect(
+			func(): if is_instance_valid(self) and _player.current_animation == name: _play_idle())
 
 
 func set_kind(new_kind: int) -> void:
@@ -111,6 +154,14 @@ func set_status(shielded: bool, frozen: bool) -> void:
 func _process(delta: float) -> void:
 	# Gentle idle "breathing" so the characters feel alive (not when frozen).
 	_time += delta
+	if _player != null:
+		if _dying:
+			return
+		if _ice_fx != null and _player.is_playing():
+			_player.pause()
+		elif _ice_fx == null and not _player.is_playing():
+			_play_idle()
+		return
 	if _ice_fx == null and _model != null:
 		var s := 1.0 + sin(_time * 2.2) * 0.015
 		_model.scale = Vector3(0.85 * (2.0 - s), 0.85 * s, 0.85)
@@ -118,15 +169,25 @@ func _process(delta: float) -> void:
 
 ## Moves to a new spot with a little jump. `high` = bigger jump (dragon).
 func move_to(target: Vector3, duration: float = 0.32, high: bool = false) -> void:
+	if _player != null and _anims.has("move"):
+		var walk: Animation = _player.get_animation(_anims["move"])
+		walk.loop_mode = Animation.LOOP_LINEAR
+		_player.play(_anims["move"], 0.1)
+		duration = maxf(duration, 0.18 * position.distance_to(target) + 0.2)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(self, "position", target, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	var h := 0.6 if high else 0.25
 	tw.tween_method(func(t: float): _hop.position.y = sin(t * PI) * h, 0.0, 1.0, duration)
 	await tw.finished
+	_play_idle()
 
 
-## A cute "poof" - shrinks and spins away.
+## Death animation (if any), then a cute "poof" - shrinks and spins away.
 func defeat() -> void:
+	_dying = true
+	if _player != null:
+		await play_action("hit", 0.6, false)
+		await play_action("death", 0.85, false)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_lean, "scale", Vector3(1.3, 0.2, 1.3), 0.15)
 	tw.chain().tween_property(self, "scale", Vector3.ZERO, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
