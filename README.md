@@ -2,7 +2,7 @@
 
 **שחמט של כישופים**: שחמט פנטזיה לדפדפן. כל כלי הוא דמות מצוירת בתלת-ממד, זז בדיוק כמו בשחמט, ויש לו כוח-על אחד.
 
-🎮 **לשחק עכשיו:** https://avi7987.github.io/spellmate/
+🎮 **לשחק עכשיו:** https://avi7987.github.io/Spellmate/
 📄 **מסמך האפיון:** https://claude.ai/artifact/HXu7MHfE4DuFUTcmkgh3To
 
 ## הדמויות
