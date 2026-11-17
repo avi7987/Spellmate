@@ -1,0 +1,17 @@
+{
+	"_comment": "Balance numbers. Change values here - no code changes needed. cooldown = own turns, duration = plies (half-turns).",
+	"energy": {
+		"start": 0,
+		"max": 10,
+		"per_turn": 1,
+		"per_capture": 1
+	},
+	"abilities": {
+		"royal_decree": { "cost": 3, "cooldown": 4, "duration": 2 },
+		"frost":        { "cost": 4, "cooldown": 3, "duration": 2 },
+		"stone_push":   { "cost": 3, "cooldown": 3 },
+		"swap":         { "cost": 3, "cooldown": 3 },
+		"fire_breath":  { "cost": 2, "cooldown": 3, "duration": 4 },
+		"charge":       { "cost": 2, "cooldown": 2 }
+	}
+}
