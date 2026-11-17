@@ -10,11 +10,13 @@ extends Node3D
 ## The camera looks straight down (orthographic). Upright characters would only
 ## show the tops of their heads, so each character leans back by LEAN_DEGREES.
 
-const LEAN_DEGREES := 58.0
+const LEAN_DEGREES := 66.0
 ## Feet sit a bit below the square centre so the leaning figure looks centred.
-const FOOT_OFFSET := 0.3
+const FOOT_OFFSET := 0.33
 
 var piece_id: int = -1
+## The square this character currently stands on (kept up to date by BoardView).
+var square: int = -1
 var kind: int = Chess.Kind.NONE
 var color: int = Chess.WHITE
 
@@ -115,6 +117,13 @@ func set_kind(new_kind: int) -> void:
 		_build_model(new_kind)
 
 
+## The character's screen-space "body" (feet and head points) for click picking.
+func screen_segment(cam: Camera3D) -> Array:
+	var feet := _lean.to_global(Vector3(0, 0.1, 0))
+	var head := _lean.to_global(Vector3(0, 1.05, 0))
+	return [cam.unproject_position(feet), cam.unproject_position(head)]
+
+
 ## Turn so the character leans toward the camera (yaw 0 = White at the bottom).
 func set_facing(yaw_degrees: float) -> void:
 	rotation_degrees.y = yaw_degrees
@@ -180,6 +189,18 @@ func move_to(target: Vector3, duration: float = 0.32, high: bool = false) -> voi
 	tw.tween_method(func(t: float): _hop.position.y = sin(t * PI) * h, 0.0, 1.0, duration)
 	await tw.finished
 	_play_idle()
+
+
+## Plays the death animation and stays down (used for the checkmated king).
+func fall() -> void:
+	_dying = true
+	if _player != null:
+		await play_action("hit", 0.5, false)
+		await play_action("death", 1.0, false)
+	else:
+		var tw := create_tween()
+		tw.tween_property(_lean, "rotation_degrees:x", -90.0, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		await tw.finished
 
 
 ## Death animation (if any), then a cute "poof" - shrinks and spins away.

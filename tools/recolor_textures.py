@@ -36,6 +36,7 @@ def recolor(img: Image.Image, team: str, king: bool) -> Image.Image:
     # Cloth -> team colour
     out_h[is_cloth] = CLOTH_HUE[team]
     out_s[is_cloth] = np.clip(s[is_cloth] * 1.05 + 0.1, 0, 1)
+    out_v[is_cloth] = v[is_cloth] * 0.78  # deeper, more medieval tones
     metal = is_grey & (v > 0.25) & (v < 0.97)
     if team == "light":
         if king:
@@ -63,7 +64,8 @@ def main():
     src, dst = sys.argv[1], sys.argv[2]
     os.makedirs(dst, exist_ok=True)
     for name in sorted(os.listdir(src)):
-        if not name.endswith("_texture.png"):
+        # only the original swatch textures (e.g. "knight_texture.png"), not Godot copies
+        if not name.endswith("_texture.png") or not name[0].islower():
             continue
         img = Image.open(os.path.join(src, name)).resize((256, 256), Image.NEAREST)
         base = name[: -len(".png")]

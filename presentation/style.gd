@@ -10,19 +10,19 @@ const OUTLINE_SHADER := preload("res://presentation/shaders/outline.gdshader")
 const TEAMS := {
 	Chess.WHITE: {
 		"metal": Color(1.0, 0.76, 0.22),     # polished gold
-		"cloth": Color(0.16, 0.30, 0.82),    # royal blue
+		"cloth": Color(0.12, 0.22, 0.55),    # deep royal blue
 		"accent": Color(0.97, 0.95, 0.88),   # ivory
 		"dragon": Color(0.30, 0.74, 0.36),   # emerald dragon
 		"rune": Color(1.0, 0.82, 0.30),
-		"ui": Color(0.35, 0.55, 1.0),
+		"ui": Color(1.0, 0.78, 0.35),
 	},
 	Chess.BLACK: {
 		"metal": Color(0.42, 0.44, 0.52),    # dark steel
-		"cloth": Color(0.50, 0.20, 0.68),    # shadow purple
+		"cloth": Color(0.36, 0.14, 0.50),    # shadow purple
 		"accent": Color(0.80, 0.14, 0.24),   # crimson
 		"dragon": Color(0.80, 0.22, 0.20),   # crimson dragon
 		"rune": Color(0.80, 0.45, 1.0),
-		"ui": Color(0.75, 0.40, 1.0),
+		"ui": Color(0.72, 0.45, 1.0),
 	},
 }
 
@@ -35,23 +35,47 @@ const EYE_WHITE := Color(1, 1, 1)
 const EYE_DARK := Color(0.08, 0.06, 0.08)
 const OUTLINE := Color(0.10, 0.07, 0.06)
 
-# --- Board ----------------------------------------------------------------
-const TILE_LIGHT := Color(0.86, 0.74, 0.52)
-const TILE_DARK := Color(0.30, 0.46, 0.38)
-const FRAME_WOOD := Color(0.45, 0.27, 0.13)
-const FRAME_GOLD := Color(0.98, 0.75, 0.25)
-const GRASS := Color(0.30, 0.55, 0.24)
+# --- Board (dark medieval stone) -------------------------------------------
+const TILE_LIGHT := Color(0.64, 0.58, 0.48)   # weathered limestone
+const TILE_DARK := Color(0.21, 0.22, 0.25)    # slate
+const FRAME_WOOD := Color(0.17, 0.10, 0.06)   # dark oak
+const FRAME_GOLD := Color(0.60, 0.44, 0.20)   # aged bronze
+const GRASS := Color(0.17, 0.27, 0.14)        # dark moss
+
+# --- Turn moods: the whole scene's light changes with the side to move -----
+const MOOD := {
+	Chess.WHITE: { "sun": Color(1.0, 0.86, 0.62), "sun_energy": 0.95, "ambient": Color(0.62, 0.55, 0.45),
+		"ambient_energy": 0.42, "accent": Color(1.0, 0.76, 0.3), "tint": Color(1.0, 0.72, 0.3, 0.16) },
+	Chess.BLACK: { "sun": Color(0.62, 0.62, 1.0), "sun_energy": 0.62, "ambient": Color(0.38, 0.30, 0.58),
+		"ambient_energy": 0.5, "accent": Color(0.72, 0.42, 1.0), "tint": Color(0.45, 0.2, 0.75, 0.22) },
+}
 
 # --- Highlights -------------------------------------------------------------
-const HL_SELECTED := Color(1.0, 0.92, 0.35, 0.55)
-const HL_MOVE := Color(0.35, 0.95, 0.45, 0.85)
-const HL_CAPTURE := Color(1.0, 0.25, 0.2, 0.95)
-const HL_ABILITY := Color(0.75, 0.35, 1.0, 0.95)
-const HL_LAST := Color(1.0, 0.95, 0.55, 0.30)
-const HL_CHECK := Color(1.0, 0.1, 0.1, 0.6)
+const HL_SELECTED := Color(1.0, 0.9, 0.55, 0.95)
+const HL_MOVE := Color(1.0, 0.84, 0.45, 0.95)
+const HL_CAPTURE := Color(1.0, 0.28, 0.16, 1.0)
+const HL_ABILITY := Color(0.75, 0.45, 1.0, 1.0)
+const HL_LAST := Color(0.95, 0.8, 0.45, 0.8)
+const HL_CHECK := Color(1.0, 0.12, 0.05, 0.85)
+const HL_HOVER := Color(1.0, 0.95, 0.8, 0.9)
 const LAVA := Color(1.0, 0.42, 0.08)
-const SHIELD := Color(0.45, 0.75, 1.0, 0.35)
+const SHIELD := Color(0.95, 0.8, 0.35, 0.3)
 const ICE := Color(0.70, 0.92, 1.0, 0.45)
+
+# --- Power themes: each power has its own colours and icon (cards, markers, effects)
+const POWER_THEME := {
+	"royal_decree": { "color": Color(1.0, 0.80, 0.32), "dark": Color(0.22, 0.13, 0.03), "icon": "shield" },
+	"frost": { "color": Color(0.55, 0.88, 1.0), "dark": Color(0.03, 0.10, 0.24), "icon": "snowflake" },
+	"stone_push": { "color": Color(0.82, 0.68, 0.50), "dark": Color(0.16, 0.12, 0.08), "icon": "boulder" },
+	"swap": { "color": Color(0.82, 0.52, 1.0), "dark": Color(0.13, 0.04, 0.22), "icon": "swirl" },
+	"fire_breath": { "color": Color(1.0, 0.52, 0.16), "dark": Color(0.26, 0.04, 0.02), "icon": "flame" },
+	"charge": { "color": Color(0.95, 0.32, 0.30), "dark": Color(0.20, 0.04, 0.05), "icon": "spear" },
+}
+
+
+static func power_color(id: String) -> Color:
+	return POWER_THEME.get(id, {}).get("color", HL_ABILITY)
+
 
 static var _cache: Dictionary = {}
 

@@ -22,7 +22,7 @@ static func legal_moves(state: GameState) -> Array:
 
 
 static func legal_abilities(state: GameState) -> Array:
-	if not state.abilities_enabled:
+	if not abilities_allowed(state):
 		return []
 	var pseudo := []
 	for s in 64:
@@ -36,9 +36,15 @@ static func legal_abilities(state: GameState) -> Array:
 static func legal_actions_from(state: GameState, from: int) -> Array:
 	var pseudo := []
 	MoveGen.piece_moves(state, from, pseudo)
-	if state.abilities_enabled:
+	if abilities_allowed(state):
 		_ability_actions(state, from, pseudo)
 	return _filter_legal(state, pseudo)
+
+
+## Powers are off in classic mode, and a king in check must be answered with a
+## normal chess move - so checkmate works exactly like in real chess.
+static func abilities_allowed(state: GameState) -> bool:
+	return state.abilities_enabled and not in_check(state, state.side_to_move)
 
 
 static func _ability_actions(state: GameState, from: int, out: Array) -> void:

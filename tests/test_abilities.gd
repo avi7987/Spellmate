@@ -70,7 +70,7 @@ func test_cooldown() -> void:
 
 
 func test_stone_push() -> void:
-	var s := _state("4k3/8/8/8/8/3n4/3R4/4K3 w - - 0 1")
+	var s := _state("4k3/8/8/8/8/3n4/3R4/K7 w - - 0 1")
 	play(s, ["stone_push:d2>d3"])
 	check_eq(s.piece_at(_sq("d4")).kind, Chess.Kind.KNIGHT, "knight pushed to d4")
 	check(s.piece_at(_sq("d3")) == null)
@@ -138,10 +138,18 @@ func test_ability_cannot_expose_own_king() -> void:
 	check(find_action(s, "swap:c4>e2") != null, "bishop keeps blocking the pin")
 
 
-func test_push_that_keeps_check_is_illegal() -> void:
-	# Black rook c1 checks the white king on g1. Shoving it to d1 keeps the check,
-	# so the push is illegal - but capturing the checker is fine.
-	var s := _state("6k1/8/8/8/8/8/5PPP/1Rr3K1 w - - 0 1")
-	check(Rules.in_check(s, Chess.WHITE))
-	check(find_action(s, "stone_push:b1>c1") == null, "push that keeps the check is illegal")
-	check(find_action(s, "b1c1") != null, "capturing the checker is legal")
+func test_push_enemy_rook() -> void:
+	# The rook on b1 shoves the black rook on b2 back to b3.
+	var s := _state("6k1/8/8/8/8/8/1r3PPP/1R4K1 w - - 0 1")
+	check(find_action(s, "stone_push:b1>b2") != null, "push b2 -> b3 is legal")
+
+
+func test_no_powers_while_in_check() -> void:
+	# Fool's mate with powers on: lava on f2 would block the queen, but powers
+	# are not allowed while in check, so it is still checkmate.
+	var s := GameState.new_game(true)
+	play(s, ["f2f3", "e7e5", "g2g4"])
+	s.energy = [10, 10]
+	play(s, ["d8h4"])
+	check(Rules.legal_abilities(s).is_empty(), "no powers in check")
+	check_eq(Rules.game_result(s)["reason"], "checkmate")

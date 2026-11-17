@@ -23,15 +23,15 @@ static var _defs: Dictionary = {}
 static var _materials: Dictionary = {}
 
 
-static func definition(kind: int) -> Dictionary:
+static func definition(kind: int, color: int) -> Dictionary:
 	if _defs.is_empty():
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
 		_defs = parsed if parsed is Dictionary else { "_": {} }
-	return _defs.get(KIND_NAMES[kind], {})
+	return _defs.get(TEAM_SUFFIX[color], {}).get(KIND_NAMES[kind], {})
 
 
 static func build(kind: int, color: int) -> Node3D:
-	var def := definition(kind)
+	var def := definition(kind, color)
 	var path: String = def.get("model", "")
 	if path != "" and ResourceLoader.exists(path):
 		return _build_from_model(def, kind, color)
@@ -53,10 +53,15 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 	var model := (load(def["model"]) as PackedScene).instantiate() as Node3D
 	var shown: Array = def.get("show", [])
 	var mat := _team_material(def, color)
+	for a in def.get("attach", []):
+		_attach_prop(model, a.get("model", ""), a.get("bone", ""))
+	var eyes := Style.glow(Style.team(color)["rune"], 3.0)
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var is_prop: bool = mi.get_parent() is BoneAttachment3D
+		var is_prop: bool = mi.get_parent() is BoneAttachment3D and not mi.has_meta("attached")
 		mi.visible = not is_prop or shown.has(String(mi.name))
-		if mat != null:
+		if def.get("glow_eyes", false) and String(mi.name).ends_with("Eyes"):
+			mi.material_override = eyes
+		elif mat != null:
 			mi.material_override = mat
 	if def.get("crown", false):
 		_add_crown(model, color)
@@ -70,6 +75,26 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 	model.set_meta("anims", anims)
 	model.set_meta("player", players[0] if players.size() > 0 else null)
 	return model
+
+
+## Puts an extra prop (weapon, shield...) on a bone, e.g. "handslot.r".
+static func _attach_prop(model: Node3D, path: String, bone: String) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var skel: Skeleton3D = null
+	var found := model.find_children("*", "Skeleton3D", true, false)
+	if found.is_empty():
+		return
+	skel = found[0]
+	if skel.find_bone(bone) < 0:
+		return
+	var att := BoneAttachment3D.new()
+	att.bone_name = bone
+	skel.add_child(att)
+	var prop := (load(path) as PackedScene).instantiate() as Node3D
+	att.add_child(prop)
+	for mi in prop.find_children("*", "MeshInstance3D", true, false) + ([prop] if prop is MeshInstance3D else []):
+		mi.set_meta("attached", true)
 
 
 ## One shared material per (texture, team): toon shading + outline, like the rest of the game.
@@ -111,7 +136,12 @@ static func _add_crown(model: Node3D, color: int) -> void:
 		if b.bone_name == "head":
 			head = b
 	if head == null:
-		return
+		var skels := model.find_children("*", "Skeleton3D", true, false)
+		if skels.is_empty():
+			return
+		head = BoneAttachment3D.new()
+		head.bone_name = "head"
+		skels[0].add_child(head)
 	var crown := Node3D.new()
 	crown.name = "Crown"
 	crown.position = Vector3(0, 0.95, 0)

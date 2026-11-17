@@ -24,19 +24,23 @@ func _process(_delta: float) -> bool:
 	if _frames == 5:
 		if _hide_menu:
 			_main.hud.show_menu(false)
+		var ui_steps := []
 		for text in _actions:
-			if text.begins_with("select:"):
-				_main._on_square_clicked(Chess.parse_square(text.substr(7)))
-				continue
-			if text == "power":
-				_main._on_power_pressed()
+			if text.begins_with("select:") or text == "power":
+				ui_steps.append(text)
 				continue
 			for a in Rules.legal_actions(_main.controller.state):
 				if str(a) == text:
-					var events := Rules.apply_action(_main.controller.state, a)
-					_main.board.sync(_main.controller.state)
+					Rules.apply_action(_main.controller.state, a)
+		_main.board.sync(_main.controller.state)
 		_main._refresh(_main.controller.state)
-	if _frames == 70:
+		_main._apply_mood(_main.controller.state.side_to_move, false)
+		for text in ui_steps:
+			if text == "power":
+				_main._on_power_pressed()
+			else:
+				_main._on_square_clicked(Chess.parse_square(text.substr(7)))
+	if _frames == 110:
 		var img := root.get_viewport().get_texture().get_image()
 		img.save_png(_out)
 		print("saved ", _out)

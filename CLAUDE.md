@@ -25,16 +25,21 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
 - `ui/` – `Hud` (built in code), `UiKit` (cartoon widgets), `Texts` (all Hebrew strings).
 
 ## Art assets
-- Characters: KayKit Adventurers (CC0) in `assets/characters/kaykit/`. Which model plays which
-  piece, visible props, scale and animation names: `data/characters.json`.
+- Characters: Light team = KayKit Adventurers (`assets/characters/kaykit/`), Shadow team = KayKit
+  Skeletons (`assets/characters/skeletons/`), both CC0. Per team and piece: model, visible props,
+  attached weapons, scale and animation names in `data/characters.json`.
   Team colours = recoloured textures made by `tools/recolor_textures.py` (`*_light.png`, `*_shadow.png`).
 - Scenery: KayKit Medieval Hexagon (CC0) in `assets/environment/kaykit/`, placed by `presentation/scenery.gd`.
 - Only GitHub and package registries are reachable from cloud sessions (itch.io etc. are blocked).
-- Still missing: a dragon for the knight piece (currently the Rogue model).
+- Still missing: a dragon for the knight piece (currently a crossbow ranger).
+- The board never rotates; whose turn it is shows through lighting (`Style.MOOD`), the frame strip and the HUD.
+- Power cards: `ui/power_card.gd` (vector-drawn art per power, themes in `Style.POWER_THEME`).
+- Click picking uses the characters' screen shape (`BoardView.square_at_screen`), since they lean up the screen.
 
 ## Rules decisions
 - Using a power replaces the move. Energy: +1 at the start of each own turn, +1 per capture, max 10.
 - A power may never leave the own king in check and never affects a king.
+- No powers while in check: check must be answered with a normal chess move, so mate works as in chess.
 - Lava blocks landing and sliding (also blocks check lines); knights jump over it.
 - Frozen pieces cannot move/use powers but still give check.
 - Effects store an absolute expiry ply (`state.ply + duration`).

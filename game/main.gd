@@ -14,9 +14,8 @@ var hud: Hud
 var camera_rig: CameraRig
 var combat: CombatDirector
 
-## Rotate the board for whoever's turn it is in a two-player game.
-var auto_flip := true
-
+var _env: Environment
+var _sun: DirectionalLight3D
 var _mode: int = Mode.IDLE
 var _selected := -1
 var _selected_actions: Array = []
@@ -44,7 +43,6 @@ func _ready() -> void:
 	controller.game_started.connect(_on_game_started)
 	controller.action_applied.connect(_on_action_applied)
 	controller.state_reset.connect(_on_state_reset)
-	controller.game_over.connect(func(r): hud.show_game_over(r))
 	controller.ai_thinking.connect(func(on): hud.set_thinking(on))
 	board.square_clicked.connect(_on_square_clicked)
 	board.presentation_done.connect(_on_presentation_done)
@@ -60,36 +58,52 @@ func _ready() -> void:
 
 
 func _build_world() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.35, 0.55, 0.95)
-	sky_mat.sky_horizon_color = Color(0.85, 0.9, 1.0)
-	sky_mat.ground_bottom_color = Color(0.3, 0.45, 0.25)
-	sky_mat.ground_horizon_color = Color(0.7, 0.8, 0.6)
+	sky_mat.sky_top_color = Color(0.25, 0.3, 0.45)
+	sky_mat.sky_horizon_color = Color(0.6, 0.55, 0.5)
+	sky_mat.ground_bottom_color = Color(0.15, 0.13, 0.1)
+	sky_mat.ground_horizon_color = Color(0.45, 0.4, 0.35)
 	sky_mat.energy_multiplier = 0.3   # the sky only feeds reflections on metal
 	sky.sky_material = sky_mat
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.75, 0.78, 0.9)
-	env.ambient_light_energy = 0.35
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 0.95
-	env.glow_enabled = true
-	env.glow_intensity = 0.25
-	env.glow_hdr_threshold = 1.3
+	_env.sky = sky
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	_env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_env.tonemap_exposure = 1.0
+	_env.glow_enabled = true
+	_env.glow_intensity = 0.35
+	_env.glow_hdr_threshold = 1.1
 	var we := WorldEnvironment.new()
-	we.environment = env
+	we.environment = _env
 	add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-62, 25, 0)
-	sun.light_energy = 0.75
-	sun.light_color = Color(1.0, 0.96, 0.88)
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 40.0
-	add_child(sun)
+	_sun = DirectionalLight3D.new()
+	_sun.rotation_degrees = Vector3(-58, 30, 0)
+	_sun.shadow_enabled = true
+	_sun.directional_shadow_max_distance = 40.0
+	add_child(_sun)
+	_apply_mood(Chess.WHITE, false)
+
+
+## The whole scene's light follows whose turn it is: warm golden daylight for
+## the Kingdom of Light, cold purple moonlight for the Kingdom of Shadow.
+func _apply_mood(color: int, animate: bool = true) -> void:
+	var m: Dictionary = Style.MOOD[color]
+	var t := 0.9 if animate else 0.0
+	if t == 0.0:
+		_sun.light_color = m["sun"]
+		_sun.light_energy = m["sun_energy"]
+		_env.ambient_light_color = m["ambient"]
+		_env.ambient_light_energy = m["ambient_energy"]
+		return
+	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_sun, "light_color", m["sun"], t)
+	tw.tween_property(_sun, "light_energy", m["sun_energy"], t)
+	tw.tween_property(_env, "ambient_light_color", m["ambient"], t)
+	tw.tween_property(_env, "ambient_light_energy", m["ambient_energy"], t)
+	board.set_turn_accent(m["accent"])
 
 
 # ------------------------------------------------------------ game events
@@ -97,10 +111,8 @@ func _build_world() -> void:
 func _on_game_started(state: GameState) -> void:
 	_last_move = []
 	_clear_selection()
-	var yaw := _yaw_for(state)
-	camera_rig.set_view_yaw(yaw, false)
-	board.set_facing(yaw)
 	board.sync(state)
+	_apply_mood(state.side_to_move)
 	_refresh(state)
 
 
@@ -110,43 +122,44 @@ func _on_action_applied(action: GameAction, events: Array, state: GameState) -> 
 	_last_move = [action.from, action.to] if action.is_move() else []
 	board.clear_highlights()
 	hud.hide_character()
-	hud.update_state(state, controller)
 	board.play_events(events, state)
 
 
 func _on_presentation_done() -> void:
 	var state := controller.state
-	var yaw := _yaw_for(state)
-	if yaw != camera_rig.view_yaw and not controller.is_over():
-		camera_rig.set_view_yaw(yaw)
-		board.set_facing(yaw)
-	_mode = Mode.IDLE
 	_refresh(state)
+	_apply_mood(state.side_to_move)
+	if controller.is_over():
+		await _play_game_end()
+	elif Rules.in_check(state, state.side_to_move):
+		hud.flash(Texts.CHECK, Color(1.0, 0.35, 0.2))
+	_mode = Mode.IDLE
 	controller.on_presentation_done()
+
+
+## Checkmate: the king falls, the winners cheer, then the result screen.
+func _play_game_end() -> void:
+	var r := controller.result
+	if r["reason"] == "checkmate":
+		var loser := controller.state.side_to_move
+		hud.flash(Texts.CHECKMATE, Color(1.0, 0.25, 0.15))
+		await board.play_checkmate(controller.state, loser)
+	else:
+		await get_tree().create_timer(0.6).timeout
+	hud.show_game_over(r)
 
 
 func _on_state_reset(state: GameState) -> void:
 	_last_move = []
 	_clear_selection()
 	board.sync(state)
-	var yaw := _yaw_for(state)
-	camera_rig.set_view_yaw(yaw)
-	board.set_facing(yaw)
+	_apply_mood(state.side_to_move)
 	_refresh(state)
 
 
 func _on_undo() -> void:
 	if _mode != Mode.BUSY:
 		controller.undo()
-
-
-## Human always at the bottom vs AI; in a local game the board turns each turn.
-func _yaw_for(state: GameState) -> float:
-	if controller.is_vs_ai():
-		return 0.0 if controller.players[Chess.WHITE] == GameController.PlayerType.HUMAN else 180.0
-	if not auto_flip:
-		return 0.0
-	return 0.0 if state.side_to_move == Chess.WHITE else 180.0
 
 
 func _refresh(state: GameState) -> void:
@@ -157,34 +170,41 @@ func _refresh(state: GameState) -> void:
 func _draw_base_highlights(state: GameState) -> void:
 	board.clear_highlights()
 	for s in _last_move:
-		board.highlight_square(s, Style.HL_LAST)
+		board.mark(s, BoardView.Mark.LAST, Style.HL_LAST)
 	if Rules.in_check(state, state.side_to_move):
-		board.highlight_square(state.find_king(state.side_to_move), Style.HL_CHECK)
+		board.mark(state.find_king(state.side_to_move), BoardView.Mark.CHECK, Style.HL_CHECK)
 
 
 # ------------------------------------------------------------ clicking
 
-func _on_square_clicked(s: int) -> void:
+## `s` = the character clicked (or the ground square), `ground` = the square under the cursor.
+func _on_square_clicked(s: int, ground: int = -1) -> void:
+	if ground < 0:
+		ground = s
 	if _mode == Mode.BUSY or _mode == Mode.PROMOTION or not controller.is_human_turn():
 		return
 	var state := controller.state
 	if _mode == Mode.TARGETING:
-		for a in _selected_actions:
-			if a.type == GameAction.Type.ABILITY and a.to == s:
-				controller.submit_action(a)
-				return
+		for target in [ground, s]:
+			for a in _selected_actions:
+				if a.type == GameAction.Type.ABILITY and a.to == target:
+					controller.submit_action(a)
+					return
 		_clear_selection()
 		return
 	if _mode == Mode.SELECTED:
-		var moves := _selected_actions.filter(func(a): return a.is_move() and a.to == s)
-		if moves.size() == 1:
-			controller.submit_action(moves[0])
-			return
-		if moves.size() > 1:  # promotion: let the player choose
-			_pending_promotion = moves
-			_mode = Mode.PROMOTION
-			hud.show_promotion()
-			return
+		# The ground square wins for moves (a head may overlap it); a click on an
+		# enemy's body counts as capturing it.
+		for target in [ground, s]:
+			var moves := _selected_actions.filter(func(a): return a.is_move() and a.to == target)
+			if moves.size() == 1:
+				controller.submit_action(moves[0])
+				return
+			if moves.size() > 1:  # promotion: let the player choose
+				_pending_promotion = moves
+				_mode = Mode.PROMOTION
+				hud.show_promotion()
+				return
 	var p := state.piece_at(s)
 	if p != null and p.color == state.side_to_move:
 		_select(s)
@@ -192,7 +212,7 @@ func _on_square_clicked(s: int) -> void:
 		# Clicking an enemy just shows its card (to read its power).
 		_clear_selection()
 		hud.show_character(state, s, 0, false)
-		board.highlight_square(s, Color(1, 1, 1, 0.25))
+		board.mark(s, BoardView.Mark.SELECTED, Color(1.0, 0.4, 0.3, 0.6))
 	else:
 		_clear_selection()
 
@@ -203,14 +223,14 @@ func _select(s: int) -> void:
 	_selected_actions = Rules.legal_actions_from(state, s)
 	_mode = Mode.SELECTED
 	_draw_base_highlights(state)
-	board.highlight_square(s, Style.HL_SELECTED)
+	board.mark(s, BoardView.Mark.SELECTED, Style.HL_SELECTED)
 	var power_targets := 0
 	for a in _selected_actions:
 		if a.is_move():
-			if state.piece_at(a.to) != null or (state.piece_at(s).kind == Chess.Kind.PAWN and a.to == state.ep_square):
-				board.highlight_ring(a.to, Style.HL_CAPTURE)
-			else:
-				board.highlight_dot(a.to, Style.HL_MOVE)
+			var is_capture: bool = state.piece_at(a.to) != null \
+				or (state.piece_at(s).kind == Chess.Kind.PAWN and a.to == state.ep_square)
+			board.mark(a.to, BoardView.Mark.CAPTURE if is_capture else BoardView.Mark.MOVE,
+				Style.HL_CAPTURE if is_capture else Style.HL_MOVE)
 		else:
 			power_targets += 1
 	hud.show_character(state, s, power_targets, false)
@@ -223,11 +243,11 @@ func _on_power_pressed() -> void:
 	var state := controller.state
 	_mode = Mode.TARGETING
 	_draw_base_highlights(state)
-	board.highlight_square(_selected, Style.HL_SELECTED)
+	board.mark(_selected, BoardView.Mark.SELECTED, Style.HL_SELECTED)
 	var count := 0
 	for a in _selected_actions:
 		if a.type == GameAction.Type.ABILITY:
-			board.highlight_ring(a.to, Style.HL_ABILITY)
+			board.mark(a.to, BoardView.Mark.POWER, Style.power_color(a.ability_id))
 			count += 1
 	hud.show_character(state, _selected, count, true)
 	hud.set_hint(Texts.CHOOSE_TARGET)

@@ -9,13 +9,28 @@ const SUBTITLE := "שחמט של כישופים"
 const TEAM := { Chess.WHITE: "ממלכת האור", Chess.BLACK: "ממלכת הצל" }
 
 const CHARACTER := {
-	Chess.Kind.KING: "המלך הזהוב",
-	Chess.Kind.QUEEN: "המכשפה הגדולה",
-	Chess.Kind.ROOK: "גולם האבן",
-	Chess.Kind.BISHOP: "הקוסם המסתורי",
-	Chess.Kind.KNIGHT: "הדרקון הקטן",
-	Chess.Kind.PAWN: "נושא המגן",
+	Chess.WHITE: {
+		Chess.Kind.KING: "המלך הזהוב",
+		Chess.Kind.QUEEN: "המכשפה הגדולה",
+		Chess.Kind.ROOK: "ענק ההרים",
+		Chess.Kind.BISHOP: "הנזיר המסתורי",
+		Chess.Kind.KNIGHT: "הצלף הבוער",
+		Chess.Kind.PAWN: "נושא המגן",
+	},
+	Chess.BLACK: {
+		Chess.Kind.KING: "מלך העצמות",
+		Chess.Kind.QUEEN: "מכשפת הקבר",
+		Chess.Kind.ROOK: "שומר הקבר",
+		Chess.Kind.BISHOP: "כוהן הצללים",
+		Chess.Kind.KNIGHT: "צלף המתים",
+		Chess.Kind.PAWN: "חייל שלד",
+	},
 }
+
+
+static func character(kind: int, color: int) -> String:
+	return CHARACTER[color][kind]
+
 
 const CHESS_ROLE := {
 	Chess.Kind.KING: "מלך",
@@ -29,9 +44,9 @@ const CHESS_ROLE := {
 const ABILITY_NAME := {
 	"royal_decree": "צו מלכותי",
 	"frost": "כישוף קרח",
-	"stone_push": "הדף אבן",
+	"stone_push": "הדיפת ענק",
 	"swap": "שיגור חליפין",
-	"fire_breath": "נשיפת אש",
+	"fire_breath": "חץ בוער",
 	"charge": "הסתערות",
 }
 
@@ -40,14 +55,17 @@ const ABILITY_DESC := {
 	"frost": "כלי אויב שהמלכה מאיימת עליו (לא מלך) קופא: לא זז ולא מפעיל כוח בתור הבא.",
 	"stone_push": "דוחף כלי אויב צמוד (לא מלך) משבצת אחת אחורה, אם היא פנויה.",
 	"swap": "מחליף מקום עם כלי ידידותי (לא מלך) על משבצת באותו צבע, בכל מקום בלוח.",
-	"fire_breath": "משבצת ריקה צמודה הופכת ללבה ל-2 סבבים. אף כלי לא נכנס אליה ולא עובר דרכה.",
+	"fire_breath": "מצית משבצת ריקה צמודה ל-2 סבבים. אי אפשר לעבור דרך הלהבות.",
 	"charge": "הרגלי מתקדם 2 משבצות קדימה מכל מקום, בלי להכות.",
 }
 
-const TURN_OF := "התור של %s"
+const TURN_OF := "תור %s"
 const YOU := "התור שלך"
 const AI_THINKING := "המחשב חושב..."
 const CHECK := "שח!"
+const CHECKMATE := "מט!"
+const IN_CHECK_NO_POWER := "בשח אין כוחות"
+const ENEMY_POWER := "כוח של היריב"
 const ENERGY := "אנרגיה"
 const COST := "עלות: %d"
 const COOLDOWN := "מוכן בעוד %d תורות"
