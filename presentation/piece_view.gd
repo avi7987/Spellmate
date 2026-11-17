@@ -1,0 +1,148 @@
+class_name PieceView
+extends Node3D
+## One character on the board.
+##
+## Hierarchy:  PieceView (on the square, turns to face the camera)
+##               ├─ Base      (flat team-coloured disc on the board)
+##               └─ Lean      (tilted back so the top-down camera sees the face)
+##                    └─ Model (+ shield / ice effects)
+##
+## The camera looks straight down (orthographic). Upright characters would only
+## show the tops of their heads, so each character leans back by LEAN_DEGREES.
+
+const LEAN_DEGREES := 58.0
+## Feet sit a bit below the square centre so the leaning figure looks centred.
+const FOOT_OFFSET := 0.3
+
+var piece_id: int = -1
+var kind: int = Chess.Kind.NONE
+var color: int = Chess.WHITE
+
+var _lean: Node3D
+var _hop: Node3D
+var _model: Node3D
+var _shield_fx: MeshInstance3D
+var _ice_fx: MeshInstance3D
+var _base: MeshInstance3D
+var _time := randf() * 10.0
+
+
+func setup(p: Piece) -> void:
+	piece_id = p.id
+	color = p.color
+	_base = MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 0.36
+	disc.bottom_radius = 0.4
+	disc.height = 0.05
+	_base.mesh = disc
+	_base.material_override = Style.metal(Style.team(color)["metal"])
+	_base.position = Vector3(0, 0.025, 0)
+	add_child(_base)
+	var inner := MeshInstance3D.new()
+	var disc2 := CylinderMesh.new()
+	disc2.top_radius = 0.3
+	disc2.bottom_radius = 0.3
+	disc2.height = 0.055
+	inner.mesh = disc2
+	inner.material_override = Style.cloth(Style.team(color)["cloth"])
+	inner.position = Vector3(0, 0.03, 0)
+	add_child(inner)
+
+	_lean = Node3D.new()
+	_lean.position = Vector3(0, 0.05, FOOT_OFFSET)
+	_lean.rotation_degrees = Vector3(-LEAN_DEGREES, 0, 0)
+	add_child(_lean)
+	_hop = Node3D.new()
+	_lean.add_child(_hop)
+	_build_model(p.kind)
+
+
+func _build_model(new_kind: int) -> void:
+	if _model != null:
+		_model.queue_free()
+	kind = new_kind
+	_model = PieceModelFactory.build(kind, color)
+	_model.scale = Vector3.ONE * 0.85
+	_hop.add_child(_model)
+
+
+func set_kind(new_kind: int) -> void:
+	if new_kind != kind:
+		_build_model(new_kind)
+
+
+## Turn so the character leans toward the camera (yaw 0 = White at the bottom).
+func set_facing(yaw_degrees: float) -> void:
+	rotation_degrees.y = yaw_degrees
+
+
+func set_status(shielded: bool, frozen: bool) -> void:
+	if shielded and _shield_fx == null:
+		_shield_fx = MeshInstance3D.new()
+		var s := SphereMesh.new()
+		s.radius = 0.55
+		s.height = 1.1
+		_shield_fx.mesh = s
+		_shield_fx.material_override = Style.overlay(Style.SHIELD)
+		_shield_fx.position = Vector3(0, 0.5, 0)
+		_hop.add_child(_shield_fx)
+		_shield_fx.scale = Vector3.ZERO
+		create_tween().tween_property(_shield_fx, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	elif not shielded and _shield_fx != null:
+		_shield_fx.queue_free()
+		_shield_fx = null
+	if frozen and _ice_fx == null:
+		_ice_fx = MeshInstance3D.new()
+		var c := CylinderMesh.new()
+		c.top_radius = 0.32
+		c.bottom_radius = 0.4
+		c.height = 1.15
+		c.radial_segments = 6
+		_ice_fx.mesh = c
+		_ice_fx.material_override = Style.overlay(Style.ICE, false)
+		_ice_fx.position = Vector3(0, 0.55, 0)
+		_hop.add_child(_ice_fx)
+	elif not frozen and _ice_fx != null:
+		_ice_fx.queue_free()
+		_ice_fx = null
+
+
+func _process(delta: float) -> void:
+	# Gentle idle "breathing" so the characters feel alive (not when frozen).
+	_time += delta
+	if _ice_fx == null and _model != null:
+		var s := 1.0 + sin(_time * 2.2) * 0.015
+		_model.scale = Vector3(0.85 * (2.0 - s), 0.85 * s, 0.85)
+
+
+## Moves to a new spot with a little jump. `high` = bigger jump (dragon).
+func move_to(target: Vector3, duration: float = 0.32, high: bool = false) -> void:
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(self, "position", target, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var h := 0.6 if high else 0.25
+	tw.tween_method(func(t: float): _hop.position.y = sin(t * PI) * h, 0.0, 1.0, duration)
+	await tw.finished
+
+
+## A cute "poof" - shrinks and spins away.
+func defeat() -> void:
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(_lean, "scale", Vector3(1.3, 0.2, 1.3), 0.15)
+	tw.chain().tween_property(self, "scale", Vector3.ZERO, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(self, "rotation_degrees:y", rotation_degrees.y + 360.0, 0.25)
+	await tw.finished
+
+
+func pop_in() -> void:
+	scale = Vector3.ZERO
+	var tw := create_tween()
+	tw.tween_property(self, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await tw.finished
+
+
+func bounce() -> void:
+	var tw := create_tween()
+	tw.tween_property(_hop, "position:y", 0.25, 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_hop, "position:y", 0.0, 0.18).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	await tw.finished
