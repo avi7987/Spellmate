@@ -62,7 +62,6 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 			mi.material_override = mat
 	if def.get("crown", false):
 		_add_crown(model, color)
-	_add_aura(model, kind, color)
 	var s := float(def.get("scale", 0.5))
 	model.scale = Vector3.ONE * s
 	var anims := {}

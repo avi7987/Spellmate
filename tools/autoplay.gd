@@ -44,8 +44,8 @@ func _process(_delta: float) -> bool:
 		if _main.controller.is_over() and _main.hud._over.visible:
 			print("AIAI OVER ", _main.controller.result, " plies ", st.ply, " battles ", _battles)
 			quit()
-		elif st.ply >= 40 and _main._mode != _main.Mode.BUSY:
-			print("AIAI 40 plies ok, battles ", _battles, " frames ", _frames)
+		elif st.ply >= 24 and _main._mode != _main.Mode.BUSY:
+			print("AIAI 24 plies ok, battles ", _battles, " frames ", _frames)
 			quit()
 		return false
 	if _frames > 6000:

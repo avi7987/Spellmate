@@ -9,6 +9,8 @@ signal new_game_requested(vs_ai: bool, powers: bool, level: int)
 signal undo_requested
 signal power_pressed
 signal cancel_pressed
+signal battle_skip_pressed
+signal menu_toggled(visible: bool)
 
 const VIGNETTE_SHADER := """
 shader_type canvas_item;
@@ -50,6 +52,8 @@ var _odds_body: Label
 var _card_trait: Label
 var _card_moves: Label
 var _turn_color := -1
+var _fade: ColorRect
+var _skip_btn: Button
 
 var _vs_ai := true
 var _powers := true
@@ -88,6 +92,18 @@ func _ready() -> void:
 	_build_game_over()
 	_build_battle_bar()
 	_build_odds_panel()
+	_skip_btn = UiKit.button(Texts.SKIP, UiKit.BUTTON_STEEL, 22)
+	_skip_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_skip_btn.position = Vector2(-170, -80)
+	_skip_btn.custom_minimum_size = Vector2(150, 56)
+	_skip_btn.pressed.connect(func(): battle_skip_pressed.emit())
+	_skip_btn.visible = false
+	_root.add_child(_skip_btn)
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_fade)
 
 
 # ------------------------------------------------------------ building
@@ -144,7 +160,7 @@ func _build_team_cards() -> void:
 	col.add_theme_constant_override("separation", 22)
 	_root.add_child(col)
 	for color in [Chess.BLACK, Chess.WHITE]:
-		var p := UiKit.panel()
+		var p := UiKit.panel(Style.team(color)["ui"])
 		p.pivot_offset = Vector2(121, 70)
 		col.add_child(p)
 		var v := VBoxContainer.new()
@@ -243,53 +259,95 @@ func _center_panel(parent: Control, width: float) -> VBoxContainer:
 	return v
 
 
+## The main menu: no dark box - the live battlefield circles behind it, with
+## the logo on top and the options in a forged-iron bar at the bottom.
 func _build_menu() -> void:
-	_menu = _overlay()
-	var v := _center_panel(_menu, 540)
-	var t := UiKit.title(Texts.GAME_TITLE, 72)
-	t.add_theme_constant_override("outline_size", 14)
-	v.add_child(t)
-	v.add_child(UiKit.label(Texts.SUBTITLE, 24, UiKit.TEXT_SOFT, 400))
-	var modes := HBoxContainer.new()
-	modes.add_theme_constant_override("separation", 10)
-	modes.layout_direction = Control.LAYOUT_DIRECTION_RTL
-	v.add_child(modes)
+	_menu = Control.new()
+	_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_root.add_child(_menu)
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """
+shader_type canvas_item;
+void fragment() {
+	float top = smoothstep(0.35, 0.0, UV.y) * 0.55;
+	float bottom = smoothstep(0.55, 1.0, UV.y) * 0.85;
+	COLOR = vec4(0.02, 0.015, 0.03, max(top, bottom));
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	shade.material = mat
+	_menu.add_child(shade)
+	var logo := VBoxContainer.new()
+	logo.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	logo.offset_top = 30
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_menu.add_child(logo)
+	var t := UiKit.title(Texts.GAME_TITLE, 110)
+	t.add_theme_constant_override("outline_size", 22)
+	t.add_theme_color_override("font_outline_color", Color(0.12, 0.06, 0.0))
+	logo.add_child(t)
+	var sub := UiKit.title(Texts.SUBTITLE, 30, Color(0.85, 0.8, 0.95))
+	logo.add_child(sub)
+	var bar := UiKit.panel()
+	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	bar.custom_minimum_size = Vector2(760, 0)
+	bar.position = Vector2(-380, -250)
+	_menu.add_child(bar)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	bar.add_child(v)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	v.add_child(row)
 	for vs_ai in [true, false]:
 		var b := UiKit.button(Texts.MODE_AI if vs_ai else Texts.MODE_LOCAL, UiKit.BUTTON_STEEL, 22)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): _vs_ai = vs_ai; _refresh_menu())
 		b.set_meta("value", vs_ai)
-		modes.add_child(b)
+		row.add_child(b)
 		_mode_buttons.append(b)
-	_level_row = VBoxContainer.new()
+	_level_row = HBoxContainer.new()
+	_level_row.add_theme_constant_override("separation", 10)
+	_level_row.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	v.add_child(_level_row)
-	_level_row.add_child(UiKit.label(Texts.LEVEL, 18, UiKit.TEXT_SOFT))
-	var levels := HBoxContainer.new()
-	levels.add_theme_constant_override("separation", 8)
-	levels.layout_direction = Control.LAYOUT_DIRECTION_RTL
-	_level_row.add_child(levels)
+	var lvl := UiKit.label(Texts.LEVEL, 19, UiKit.TEXT_SOFT)
+	lvl.custom_minimum_size = Vector2(110, 0)
+	_level_row.add_child(lvl)
 	for i in Texts.LEVELS.size():
 		var b := UiKit.button(Texts.LEVELS[i], UiKit.BUTTON_PURPLE, 20)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 46)
 		b.pressed.connect(func(): _level = i; _refresh_menu())
-		levels.add_child(b)
+		_level_row.add_child(b)
 		_level_buttons.append(b)
+	var last := HBoxContainer.new()
+	last.add_theme_constant_override("separation", 12)
+	last.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	v.add_child(last)
 	_powers_check = CheckButton.new()
 	_powers_check.text = Texts.POWERS_ON
 	_powers_check.button_pressed = true
-	_powers_check.add_theme_font_size_override("font_size", 21)
+	_powers_check.add_theme_font_size_override("font_size", 20)
 	_powers_check.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	_powers_check.toggled.connect(func(on): _powers = on)
-	v.add_child(_powers_check)
-	var start := UiKit.button(Texts.START, UiKit.BUTTON_RED, 30)
-	start.custom_minimum_size = Vector2(0, 66)
+	last.add_child(_powers_check)
+	_menu_resume = UiKit.button("חזרה למשחק", UiKit.BUTTON_GREY, 19)
+	_menu_resume.custom_minimum_size = Vector2(170, 54)
+	_menu_resume.pressed.connect(func(): show_menu(false))
+	last.add_child(_menu_resume)
+	var start := UiKit.button(Texts.START, UiKit.BUTTON_RED, 34)
+	start.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start.custom_minimum_size = Vector2(0, 70)
 	start.pressed.connect(func():
 		show_menu(false)
 		new_game_requested.emit(_vs_ai, _powers, _level))
-	v.add_child(start)
-	_menu_resume = UiKit.button("חזרה למשחק", UiKit.BUTTON_GREY, 19)
-	_menu_resume.pressed.connect(func(): show_menu(false))
-	v.add_child(_menu_resume)
+	last.add_child(start)
 	_refresh_menu()
 
 
@@ -427,6 +485,12 @@ func set_last_mover(color: int) -> void:
 func show_menu(visible_now: bool, can_resume: bool = true) -> void:
 	_menu.visible = visible_now
 	_menu_resume.visible = can_resume
+	# The board UI hides behind the menu so the live scene shows.
+	for c in [_banner.get_parent().get_parent(), _char_panel, _undo_btn.get_parent()]:
+		c.visible = not visible_now if c != _char_panel else false
+	for col in _team_cards.values():
+		col["panel"].get_parent().visible = not visible_now
+	menu_toggled.emit(visible_now)
 
 
 func show_game_over(result: Dictionary) -> void:
@@ -521,6 +585,33 @@ func _set_turn_look(color: int) -> void:
 	var cur = mat.get_shader_parameter("tint")
 	var from: Color = cur if cur is Color else Color(mood["tint"], 0.0)
 	_vignette.create_tween().tween_method(func(c: Color): mat.set_shader_parameter("tint", c), from, mood["tint"], 0.8)
+
+
+## Fades the whole screen to black (alpha 1) or back (alpha 0).
+func fade(alpha: float, duration: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", alpha, duration)
+	await tw.finished
+
+
+## While a battle scene plays: show the skip button and hide the board UI
+## (and bring back exactly what was showing afterwards).
+func show_battle_skip(on: bool) -> void:
+	_skip_btn.visible = on
+	if on:
+		_hidden_for_battle.clear()
+		for c in _root.get_children():
+			if c != _skip_btn and c != _fade and c != _flash and c.visible:
+				_hidden_for_battle.append(c)
+				c.visible = false
+	else:
+		for c in _hidden_for_battle:
+			if is_instance_valid(c) and c != _battle and c != _odds_panel:
+				c.visible = true
+		_hidden_for_battle.clear()
+
+
+var _hidden_for_battle: Array = []
 
 
 func set_hint(text: String) -> void:

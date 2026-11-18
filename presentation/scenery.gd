@@ -5,7 +5,7 @@ extends Node3D
 ## Like the characters, props lean toward the top-down camera so we see their sides.
 
 const DIR := "res://assets/environment/kaykit/"
-const LEAN := 38.0
+const LEAN := 0.0
 
 ## [model, x, z, scale, yaw]  - x/z in board units (the board spans -4.6..4.6)
 const PROPS := [

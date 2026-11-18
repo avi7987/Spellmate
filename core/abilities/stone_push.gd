@@ -33,10 +33,17 @@ func targets(state: GameState, from: int) -> Array:
 	return out
 
 
+## Giant shove: the enemy flies up to 2 squares back and is stunned (frozen)
+## for a turn.
 func apply(state: GameState, from: int, target: int, events: Array) -> void:
 	var dest := push_destination(state, from, target)
+	var further := push_destination(state, target, dest)
+	if further >= 0:
+		dest = further
 	var t := state.piece_at(target)
-	state.board[dest] = t
 	state.board[target] = null
+	state.board[dest] = t
 	t.has_moved = true
+	state.freezes[t.id] = state.ply + 2
 	events.append({ "type": "push", "piece_id": t.id, "from": target, "to": dest })
+	events.append({ "type": "freeze", "piece_id": t.id, "square": dest })

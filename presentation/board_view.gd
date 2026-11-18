@@ -309,14 +309,13 @@ func _unhandled_input(event: InputEvent) -> void:
 ## selects that character's square. Otherwise the square under the cursor.
 func square_at_screen(pos: Vector2) -> int:
 	var cam := camera_rig.camera
-	var px_per_unit := get_viewport().get_visible_rect().size.y / cam.size
-	var radius := 0.36 * px_per_unit
 	var best := -1
 	var best_y := -INF
 	for v in _pieces.values():
 		if not v.visible or v.square < 0:
 			continue
 		var seg: Array = v.screen_segment(cam)
+		var radius: float = (cam.unproject_position(v.global_position + Vector3(0.36, 0, 0)) - cam.unproject_position(v.global_position)).length()
 		if Geometry2D.get_closest_point_to_segment(pos, seg[0], seg[1]).distance_to(pos) <= radius:
 			# Front-most character wins (the one standing lower on the screen).
 			if seg[0].y > best_y:
@@ -338,7 +337,7 @@ func play_events(events: Array, state: GameState) -> void:
 				var a := view_of(e["attacker_id"])
 				var d := view_of(e["defender_id"])
 				skip_moves[e["attacker_id"]] = true
-				await combat.play_battle(e, a, d, square_to_world(e["from"]), square_to_world(e["to"]))
+				await combat.play_battle(e, a, d, square_to_world(e["from"]), square_to_world(e["to"]), _terrain[e["to"]])
 			"move":
 				if skip_moves.has(e["piece_id"]):
 					continue
@@ -346,23 +345,30 @@ func play_events(events: Array, state: GameState) -> void:
 				if v != null:
 					await v.move_to(square_to_world(e["to"]), 0.34, v.kind == Chess.Kind.KNIGHT)
 			"ability":
+				# A short cinematic: the camera swoops in, the hero casts, a big effect.
 				var caster := view_of(e["piece_id"])
-				Effects.ring(_fx_root, square_to_world(e["from"]), Style.power_color(e["ability_id"]), 1.4, 0.5)
+				var at := square_to_world(e["from"])
+				var col := Style.power_color(e["ability_id"])
+				if camera_rig != null:
+					await camera_rig.focus(at, 6.5, 0.45)
+				Effects.ring(_fx_root, at, col, 1.6, 0.5)
+				Effects.pillar(_fx_root, at, col)
 				if caster != null:
-					await caster.play_action("cast", 0.5)
+					await caster.play_action("cast", 0.55)
+				_power_burst(e["ability_id"], square_to_world(e["target"]), col)
+				await get_tree().create_timer(0.55).timeout
+				if camera_rig != null:
+					camera_rig.reset_view(true)
 			"shield":
-				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Style.power_color("royal_decree"), 20, 2.0)
+				Effects.pillar(_fx_root, square_to_world(e["square"]), Style.power_color("royal_decree"), 3.0, 0.7)
 			"brace":
 				Effects.ring(_fx_root, square_to_world(e["square"]), Style.power_color("brace"), 1.0)
 			"toil":
-				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.4, 0), Style.CRYSTAL, 24, 2.0)
+				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.4, 0), Style.CRYSTAL, 40, 3.0)
 			"freeze":
-				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(0.8, 0.95, 1.0), 30, 2.5)
-				Effects.ring(_fx_root, square_to_world(e["square"]), Style.ICE, 1.3)
+				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(0.8, 0.95, 1.0), 24, 2.5)
 			"lava":
-				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.2, 0), Style.LAVA, 30, 3.0)
-				if camera_rig != null:
-					camera_rig.shake(0.05, 0.2)
+				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.2, 0), Style.LAVA, 20, 3.0)
 			"push":
 				var pushed := view_of(e["piece_id"])
 				if pushed != null:
@@ -384,6 +390,32 @@ func play_events(events: Array, state: GameState) -> void:
 				_energy_sparkles(state, e["color"])
 	sync(state)
 	presentation_done.emit()
+
+
+## The big moment of each power, at its target.
+func _power_burst(id: String, at: Vector3, col: Color) -> void:
+	match id:
+		"frost":
+			Effects.storm(_fx_root, at, Color(0.8, 0.95, 1.0), 1.6, 80)
+			Effects.shockwave(_fx_root, at, Style.ICE, 2.2)
+		"fire_breath":
+			Effects.storm(_fx_root, at, Style.LAVA, 1.4, 70)
+			Effects.shockwave(_fx_root, at, Style.LAVA, 2.0)
+			if camera_rig != null:
+				camera_rig.shake(0.15, 0.4)
+		"stone_push":
+			Effects.shockwave(_fx_root, at, Color(0.75, 0.65, 0.5), 2.5)
+			if camera_rig != null:
+				camera_rig.shake(0.2, 0.35)
+		"swap":
+			Effects.pillar(_fx_root, at, col, 5.0, 0.8)
+			Effects.burst(_fx_root, at + Vector3(0, 0.6, 0), col, 50, 3.0)
+		"royal_decree", "brace":
+			Effects.shockwave(_fx_root, at, col, 1.8)
+		"toil":
+			Effects.pillar(_fx_root, at, Style.CRYSTAL, 4.0, 0.8)
+		_:
+			Effects.burst(_fx_root, at + Vector3(0, 0.5, 0), col, 40, 3.0)
 
 
 ## Little crystal sparks over the miners that just produced energy.

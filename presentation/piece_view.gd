@@ -10,9 +10,9 @@ extends Node3D
 ## The camera looks straight down (orthographic). Upright characters would only
 ## show the tops of their heads, so each character leans back by LEAN_DEGREES.
 
-const LEAN_DEGREES := 66.0
+const LEAN_DEGREES := 0.0
 ## Feet sit a bit below the square centre so the leaning figure looks centred.
-const FOOT_OFFSET := 0.33
+const FOOT_OFFSET := 0.0
 
 var piece_id: int = -1
 ## The square this character currently stands on (kept up to date by BoardView).

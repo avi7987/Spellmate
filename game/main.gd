@@ -39,6 +39,8 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	combat.hud = hud
+	hud.battle_skip_pressed.connect(func(): combat.skip())
+	hud.menu_toggled.connect(func(on): camera_rig.orbit_menu(on))
 
 	controller.game_started.connect(_on_game_started)
 	controller.action_applied.connect(_on_action_applied)

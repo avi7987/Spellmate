@@ -7,8 +7,8 @@ const FONT_UI := preload("res://assets/fonts/Rubik.ttf")
 const FONT_TITLE := preload("res://assets/fonts/SuezOne.ttf")
 const FONT_BODY := preload("res://assets/fonts/FrankRuhlLibre.ttf")
 
-const PANEL_BG := Color(0.08, 0.065, 0.06, 0.93)
-const PANEL_BORDER := Color(0.62, 0.46, 0.22)
+const PANEL_BG := Color(0.075, 0.075, 0.09, 0.94)   # dark forged iron
+const PANEL_BORDER := Color(0.62, 0.46, 0.22)        # bronze rim
 const GOLD := Color(0.98, 0.80, 0.42)
 const BUTTON_RED := Color(0.48, 0.12, 0.09)
 const BUTTON_BRONZE := Color(0.55, 0.38, 0.15)
@@ -74,10 +74,24 @@ static func panel_style(bg: Color = PANEL_BG, border: Color = PANEL_BORDER, radi
 	return sb
 
 
-static func panel() -> PanelContainer:
+static func panel(accent: Color = Color(0.45, 0.8, 1.0)) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", panel_style())
+	var decor := MetalDecor.new()
+	decor.accent = accent
+	p.add_child(decor)
 	return p
+
+
+## The rune colour that goes with a button colour.
+static func accent_for(color: Color) -> Color:
+	if color == BUTTON_RED:
+		return Color(1.0, 0.5, 0.2)
+	if color == BUTTON_BRONZE:
+		return Color(1.0, 0.8, 0.35)
+	if color == BUTTON_PURPLE:
+		return Color(0.8, 0.5, 1.0)
+	return Color(0.45, 0.8, 1.0)
 
 
 static func label(text: String, size: int = 20, color: Color = TEXT, weight: int = 500) -> Label:
@@ -100,34 +114,17 @@ static func title(text: String, size: int = 30, color: Color = GOLD) -> Label:
 	return l
 
 
+## A forged-iron button with glowing runes (see RuneButton).
 static func button(text: String, color: Color = BUTTON_STEEL, size: int = 22) -> Button:
-	var b := Button.new()
-	b.text = text
+	var b := RuneButton.new(text, accent_for(color))
 	b.add_theme_font_override("font", FONT_TITLE)
 	b.add_theme_font_size_override("font_size", size)
-	b.custom_minimum_size = Vector2(0, 52)
+	b.custom_minimum_size = Vector2(0, 54)
 	b.add_theme_color_override("font_color", TEXT)
-	b.add_theme_color_override("font_hover_color", GOLD)
+	b.add_theme_color_override("font_hover_color", accent_for(color).lightened(0.4))
 	b.add_theme_color_override("font_pressed_color", GOLD)
-	for state_name in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var sb := StyleBoxFlat.new()
-		var c := color
-		match state_name:
-			"hover": c = color.lightened(0.12)
-			"pressed": c = color.darkened(0.2)
-			"disabled": c = BUTTON_GREY.darkened(0.3)
-		sb.bg_color = c
-		sb.border_color = PANEL_BORDER if state_name != "disabled" else Color(0.3, 0.27, 0.22)
-		sb.set_border_width_all(2)
-		sb.border_width_bottom = 5 if state_name != "pressed" else 2
-		sb.set_corner_radius_all(6)
-		sb.set_content_margin_all(10)
-		sb.shadow_color = Color(0, 0, 0, 0.4)
-		sb.shadow_size = 4
-		if state_name == "focus":
-			sb.draw_center = false
-			sb.border_color = Color(1, 0.9, 0.6, 0.5)
-			sb.shadow_size = 0
-		b.add_theme_stylebox_override(state_name, sb)
-	b.add_theme_color_override("font_disabled_color", Color(0.55, 0.5, 0.45))
+	b.add_theme_color_override("font_focus_color", TEXT)
+	b.add_theme_color_override("font_disabled_color", Color(0.45, 0.43, 0.4))
+	b.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	b.add_theme_constant_override("outline_size", 6)
 	return b

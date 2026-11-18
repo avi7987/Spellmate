@@ -1,5 +1,6 @@
 extends Ability
-## Knight - "Burning Arrow": an empty adjacent square catches fire for 2 rounds.
+## Knight - "Burning Arrow": an empty adjacent square and the empty squares around
+## it (a plus shape) catch fire for 2 rounds.
 ## No unit may enter or pass through fire (knights can still jump over it).
 
 
@@ -17,6 +18,10 @@ func targets(state: GameState, from: int) -> Array:
 	return out
 
 
+## Firestorm: the target square and the empty squares around it (a plus shape) burn.
 func apply(state: GameState, from: int, target: int, events: Array) -> void:
-	state.hazards[target] = state.ply + duration
-	events.append({ "type": "lava", "square": target, "from": from })
+	events.append({ "type": "firestorm", "square": target, "from": from })
+	for s in [target] + Ability.neighbors(target, Chess.ROOK_DIRS):
+		if state.piece_at(s) == null and state.is_walkable(s):
+			state.hazards[s] = state.ply + duration
+			events.append({ "type": "lava", "square": s, "from": from })

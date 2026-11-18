@@ -1,104 +1,239 @@
 {
-	"_comment": "Which 3D model plays each piece, per team. 'show' = built-in props to keep (others are hidden). 'attach' = extra prop models put on a bone. 'texture' = base name of the team-recoloured texture next to the model. Animation names come from the model.",
+	"_comment": "Which 3D model plays each piece. Both kingdoms use the same characters; the Void ('shadow') gets the recoloured *_shadow textures. 'show' = built-in props to keep (others are hidden). 'attach' = extra props on a bone.",
 	"light": {
 		"king": {
-			"model": "res://assets/characters/kaykit/Knight.glb", "texture": "knight_texture", "king_texture": true,
-			"show": ["Knight_Cape", "2H_Sword"], "crown": true, "scale": 0.58,
-			"idle": "2H_Melee_Idle", "move": "Walking_A", "attack": "2H_Melee_Attack_Chop",
-			"cast": "Cheer", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"king_texture": true,
+			"show": [
+				"Knight_Cape",
+				"2H_Sword"
+			],
+			"crown": true,
+			"scale": 0.58,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_A",
+			"attack": "2H_Melee_Attack_Chop",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"queen": {
-			"model": "res://assets/characters/kaykit/Mage.glb", "texture": "mage_texture",
-			"show": ["Mage_Hat", "Mage_Cape", "2H_Staff"], "scale": 0.55,
-			"idle": "Idle", "move": "Walking_A", "attack": "Spellcast_Shoot",
-			"cast": "Spellcast_Long", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Mage_Hat",
+				"Mage_Cape",
+				"2H_Staff"
+			],
+			"scale": 0.55,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Long",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"rook": {
-			"model": "res://assets/characters/kaykit/Barbarian.glb", "texture": "barbarian_texture",
-			"show": ["Barbarian_Hat", "Barbarian_Cape", "2H_Axe"], "scale": 0.6,
-			"idle": "2H_Melee_Idle", "move": "Walking_A", "attack": "2H_Melee_Attack_Spin",
-			"cast": "Unarmed_Melee_Attack_Punch_A", "hit": "Hit_B", "death": "Death_B", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"Barbarian_Hat",
+				"Barbarian_Cape",
+				"2H_Axe"
+			],
+			"scale": 0.6,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_A",
+			"attack": "2H_Melee_Attack_Spin",
+			"cast": "Unarmed_Melee_Attack_Punch_A",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
 		},
 		"bishop": {
-			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb", "texture": "rogue_texture",
-			"show": ["Rogue_Cape", "Throwable"], "scale": 0.55,
-			"idle": "Idle", "move": "Walking_A", "attack": "Throw",
-			"cast": "Spellcast_Raise", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape",
+				"Throwable"
+			],
+			"scale": 0.55,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Throw",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"knight": {
-			"model": "res://assets/characters/kaykit/Rogue.glb", "texture": "rogue_texture",
-			"show": ["2H_Crossbow", "Rogue_Cape"], "scale": 0.55,
-			"idle": "2H_Ranged_Aiming", "move": "Running_A", "attack": "2H_Ranged_Shoot",
-			"cast": "Spellcast_Shoot", "hit": "Hit_B", "death": "Death_B", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"2H_Crossbow",
+				"Rogue_Cape"
+			],
+			"scale": 0.55,
+			"idle": "2H_Ranged_Aiming",
+			"move": "Running_A",
+			"attack": "2H_Ranged_Shoot",
+			"cast": "Spellcast_Shoot",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
 		},
 		"pawn": {
-			"model": "res://assets/characters/kaykit/Knight.glb", "texture": "knight_texture",
-			"show": ["Knight_Helmet", "Round_Shield", "1H_Sword"], "scale": 0.47,
-			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Stab",
-			"cast": "Block", "hit": "Block_Hit", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"Round_Shield",
+				"1H_Sword"
+			],
+			"scale": 0.47,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "1H_Melee_Attack_Stab",
+			"cast": "Block",
+			"hit": "Block_Hit",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"miner": {
-			"model": "res://assets/characters/kaykit/Barbarian.glb", "texture": "barbarian_texture",
-			"show": ["1H_Axe"], "scale": 0.45,
-			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Chop",
-			"cast": "Interact", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"1H_Axe"
+			],
+			"scale": 0.45,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		}
 	},
 	"shadow": {
 		"king": {
-			"model": "res://assets/characters/skeletons/Skeleton_Warrior.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Warrior_Cloak"], "crown": true, "glow_eyes": true, "scale": 0.6,
-			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Blade.gltf", "bone": "handslot.r" }],
-			"idle": "2H_Melee_Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Jump_Chop",
-			"cast": "Cheer", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"king_texture": true,
+			"show": [
+				"Knight_Cape",
+				"2H_Sword"
+			],
+			"crown": true,
+			"scale": 0.58,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_A",
+			"attack": "2H_Melee_Attack_Chop",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"queen": {
-			"model": "res://assets/characters/skeletons/Skeleton_Mage.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Mage_Hat"], "glow_eyes": true, "scale": 0.56,
-			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Staff.gltf", "bone": "handslot.r" }],
-			"idle": "Idle", "move": "Walking_A", "attack": "Spellcast_Shoot",
-			"cast": "Spellcast_Long", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Mage_Hat",
+				"Mage_Cape",
+				"2H_Staff"
+			],
+			"scale": 0.55,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Long",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"rook": {
-			"model": "res://assets/characters/skeletons/Skeleton_Warrior.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], "glow_eyes": true, "scale": 0.62,
-			"attach": [
-				{ "model": "res://assets/characters/skeletons/Skeleton_Axe.gltf", "bone": "handslot.r" },
-				{ "model": "res://assets/characters/skeletons/Skeleton_Shield_Large_A.gltf", "bone": "handslot.l" }
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"Barbarian_Hat",
+				"Barbarian_Cape",
+				"2H_Axe"
 			],
-			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Chop",
-			"cast": "Block", "hit": "Block_Hit", "death": "Death_B", "victory": "Cheer"
+			"scale": 0.6,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_A",
+			"attack": "2H_Melee_Attack_Spin",
+			"cast": "Unarmed_Melee_Attack_Punch_A",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
 		},
 		"bishop": {
-			"model": "res://assets/characters/skeletons/Skeleton_Rogue.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], "glow_eyes": true, "scale": 0.56,
-			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Staff.gltf", "bone": "handslot.r" }],
-			"idle": "Idle", "move": "Walking_A", "attack": "Spellcast_Shoot",
-			"cast": "Spellcast_Raise", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape",
+				"Throwable"
+			],
+			"scale": 0.55,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Throw",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"knight": {
-			"model": "res://assets/characters/skeletons/Skeleton_Rogue.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Rogue_Cape"], "glow_eyes": true, "scale": 0.56,
-			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Crossbow.gltf", "bone": "handslot.r" }],
-			"idle": "2H_Ranged_Aiming", "move": "Running_A", "attack": "2H_Ranged_Shoot",
-			"cast": "Spellcast_Shoot", "hit": "Hit_B", "death": "Death_B", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"2H_Crossbow",
+				"Rogue_Cape"
+			],
+			"scale": 0.55,
+			"idle": "2H_Ranged_Aiming",
+			"move": "Running_A",
+			"attack": "2H_Ranged_Shoot",
+			"cast": "Spellcast_Shoot",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
 		},
 		"pawn": {
-			"model": "res://assets/characters/skeletons/Skeleton_Minion.glb", "texture": "skeleton_texture",
-			"show": ["Skeleton_Minion_Cloak"], "glow_eyes": true, "scale": 0.5,
-			"attach": [
-				{ "model": "res://assets/characters/skeletons/Skeleton_Blade.gltf", "bone": "handslot.r" },
-				{ "model": "res://assets/characters/skeletons/Skeleton_Shield_Small_A.gltf", "bone": "handslot.l" }
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"Round_Shield",
+				"1H_Sword"
 			],
-			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Stab",
-			"cast": "Block", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"scale": 0.47,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "1H_Melee_Attack_Stab",
+			"cast": "Block",
+			"hit": "Block_Hit",
+			"death": "Death_A",
+			"victory": "Cheer"
 		},
 		"miner": {
-			"model": "res://assets/characters/skeletons/Skeleton_Minion.glb", "texture": "skeleton_texture",
-			"show": [], "glow_eyes": true, "scale": 0.45,
-			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Axe.gltf", "bone": "handslot.r" }],
-			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Chop",
-			"cast": "Interact", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"1H_Axe"
+			],
+			"scale": 0.45,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		}
 	}
 }

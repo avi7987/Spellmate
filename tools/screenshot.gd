@@ -8,6 +8,7 @@ var _actions: Array = []
 var _hide_menu := false
 var _frames := 0
 var _main: Node
+var _shot_frame := 110
 
 
 func _init() -> void:
@@ -15,6 +16,7 @@ func _init() -> void:
 	if args.size() > 0: _out = args[0]
 	if args.size() > 1 and args[1] != "": _actions = Array(args[1].split(","))
 	if args.size() > 2: _hide_menu = args[2] == "nomenu"
+	if args.size() > 3: _shot_frame = int(args[3])
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 
@@ -32,7 +34,7 @@ func _process(_delta: float) -> bool:
 				st.board[Chess.parse_square(parts[3])] = null
 				st.add_piece(Chess.kind_from_name(parts[1]), int(parts[2]), Chess.parse_square(parts[3]))
 				continue
-			if text.begins_with("select:") or text == "power" or text == "battlebar" or text.begins_with("odds:"):
+			if text.begins_with("select:") or text == "power" or text == "battlebar" or text.begins_with("odds:") or text.begins_with("arena:"):
 				ui_steps.append(text)
 				continue
 			for a in Rules.legal_actions(_main.controller.state):
@@ -60,6 +62,12 @@ func _process(_delta: float) -> bool:
 				_main.hud.show_odds(Combat.odds(st2, Chess.parse_square(ft[0]), Chess.parse_square(ft[1])),
 					Texts.character(a2.kind, a2.color), Texts.character(d2.kind, d2.color))
 				continue
+			if text.begins_with("arena:"):  # arena:<attacker kind>:<defender kind>:<terrain>:<won 0/1>
+				var q: PackedStringArray = text.split(":")
+				var ev := { "attacker_kind": Chess.kind_from_name(q[1]), "defender_kind": Chess.kind_from_name(q[2]),
+					"chance": 65, "roll": 30, "won": q[4] == "1", "phased": false }
+				_main.combat.arena.play(ev, int(q[3]), 0, _main.hud)
+				continue
 			if text == "power":
 				_main._on_power_pressed()
 			else:
@@ -67,7 +75,7 @@ func _process(_delta: float) -> bool:
 				var cam: Camera3D = _main.camera_rig.camera
 				var sq := Chess.parse_square(text.substr(7))
 
-	if _frames == 110:
+	if _frames == _shot_frame:
 		var img := root.get_viewport().get_texture().get_image()
 		img.save_png(_out)
 		print("saved ", _out)

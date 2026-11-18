@@ -28,4 +28,6 @@ func apply(state: GameState, from: int, target: int, events: Array) -> void:
 	state.board[target] = b
 	b.has_moved = true
 	t.has_moved = true
+	# The ally arrives wrapped in protective light.
+	state.shields[t.id] = state.ply + 2
 	events.append({ "type": "swap", "piece_id": b.id, "other_id": t.id, "from": from, "to": target })

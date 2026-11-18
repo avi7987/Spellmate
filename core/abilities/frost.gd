@@ -1,6 +1,6 @@
 extends Ability
-## Queen - "Frost Spell": an enemy unit (not the king) that the
-## queen could reach is frozen: it cannot move or use its power on the next turn.
+## Queen - "Frost Storm": an enemy unit (not the king) that the
+## queen could reach, and every enemy standing next to it, is frozen: it cannot move or use its power on the next turn.
 ## A frozen piece still threatens squares.
 
 
@@ -33,7 +33,12 @@ func targets(state: GameState, from: int) -> Array:
 	return out
 
 
-func apply(state: GameState, _from: int, target: int, events: Array) -> void:
-	var t := state.piece_at(target)
-	state.freezes[t.id] = state.ply + duration
-	events.append({ "type": "freeze", "piece_id": t.id, "square": target })
+## Frost storm: the target AND every enemy next to it freeze (kings never do).
+func apply(state: GameState, from: int, target: int, events: Array) -> void:
+	var me := state.piece_at(from).color
+	events.append({ "type": "frost_storm", "square": target })
+	for s in [target] + Ability.neighbors(target, Chess.KING_OFFSETS):
+		var t := state.piece_at(s)
+		if t != null and t.color != me and t.kind != Chess.Kind.KING:
+			state.freezes[t.id] = state.ply + duration
+			events.append({ "type": "freeze", "piece_id": t.id, "square": s })

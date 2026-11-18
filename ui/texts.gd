@@ -8,30 +8,20 @@ const SUBTITLE := "מלחמת השמש והתהום"
 
 const TEAM := { Chess.WHITE: "ממלכת השמש", Chess.BLACK: "ממלכת התהום" }
 
+## Both kingdoms field the same characters, in their own colours.
 const CHARACTER := {
-	Chess.WHITE: {
-		Chess.Kind.KING: "מלך השמש",
-		Chess.Kind.QUEEN: "כוהנת הזריחה",
-		Chess.Kind.ROOK: "ענק השחר",
-		Chess.Kind.BISHOP: "נזיר הקרן",
-		Chess.Kind.KNIGHT: "קשת הלהבה",
-		Chess.Kind.PAWN: "לגיונר השמש",
-		Chess.Kind.MINER: "כורה הקריסטל",
-	},
-	Chess.BLACK: {
-		Chess.Kind.KING: "אדון התהום",
-		Chess.Kind.QUEEN: "מכשפת הריק",
-		Chess.Kind.ROOK: "שומר הסדק",
-		Chess.Kind.BISHOP: "כוהן הצללים",
-		Chess.Kind.KNIGHT: "צלף התהום",
-		Chess.Kind.PAWN: "חייל שלד",
-		Chess.Kind.MINER: "חופר העצמות",
-	},
+	Chess.Kind.KING: "המלך",
+	Chess.Kind.QUEEN: "המכשפה",
+	Chess.Kind.ROOK: "הענק",
+	Chess.Kind.BISHOP: "הנזיר",
+	Chess.Kind.KNIGHT: "הקשת",
+	Chess.Kind.PAWN: "הלגיונר",
+	Chess.Kind.MINER: "הכורה",
 }
 
 
 static func character(kind: int, color: int) -> String:
-	return CHARACTER[color][kind]
+	return CHARACTER[kind]
 
 
 const ROLE := {
@@ -85,22 +75,22 @@ static func odds_line(key: String) -> String:
 
 const ABILITY_NAME := {
 	"royal_decree": "צו מלכותי",
-	"frost": "כישוף קרח",
+	"frost": "סערת קרח",
 	"stone_push": "הדיפת ענק",
 	"swap": "שיגור חליפין",
-	"fire_breath": "חץ בוער",
+	"fire_breath": "סופת אש",
 	"brace": "קיר מגנים",
 	"toil": "משמרת כפולה",
 }
 
 const ABILITY_DESC := {
-	"royal_decree": "יחידה ידידותית צמודה למלך מקבלת מגן: אי אפשר לתקוף אותה עד התור הבא שלך.",
-	"frost": "יחידת אויב בטווח המלכה (לא מלך) קופאת: לא זזה ולא מפעילה כוח בתור הבא.",
-	"stone_push": "דוחף יחידת אויב צמודה (לא מלך) משבצת אחת אחורה, אם יש לאן.",
-	"swap": "מחליף מקום עם יחידה ידידותית (לא מלך) על משבצת באותו צבע, בכל מקום בשדה.",
-	"fire_breath": "מצית משבצת ריקה צמודה ל-2 סבבים. אי אפשר לעבור דרך הלהבות.",
-	"brace": "החייל מרים את המגן: +25% הגנה עד התור הבא שלך.",
-	"toil": "במקום לזוז, הכורה עובד קשה ומוסיף 2 אנרגיה מיד.",
+	"royal_decree": "כל היחידות הידידותיות סביב המלך מקבלות מגן: אי אפשר לתקוף אותן עד התור הבא שלך.",
+	"frost": "יחידת אויב בטווח המלכה וכל האויבים שסביבה קופאים לתור אחד (לא מלכים).",
+	"stone_push": "הענק הודף יחידת אויב צמודה עד 2 משבצות אחורה, והיא המומה לתור אחד.",
+	"swap": "מחליף מקום עם יחידה ידידותית על משבצת באותו צבע, והיא מגיעה עם מגן.",
+	"fire_breath": "מצית משבצת ריקה צמודה ואת המשבצות סביבה ל-2 סבבים. אי אפשר לעבור דרך האש.",
+	"brace": "החייל וכל החיילים הצמודים אליו מרימים מגנים: +25% הגנה עד התור הבא שלך.",
+	"toil": "במקום לזוז, הכורה עובד קשה ומוסיף 3 אנרגיה מיד.",
 }
 
 const TURN_OF := "תור %s"
@@ -129,6 +119,8 @@ const LEVELS := ["שוליה", "אביר", "מלך"]
 const LEVEL := "רמת קושי"
 const CAPTURED := "הובסו: %d"
 const BATTLE := "קרב!"
+const POWER := "כוח"
+const SKIP := "דלג"
 const WIN_CHANCE := "סיכוי ניצחון לתוקף"
 const VICTORY := "ניצחון!"
 const DEFEAT := "הפסד!"

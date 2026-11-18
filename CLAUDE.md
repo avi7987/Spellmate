@@ -19,24 +19,26 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
 - `presentation/` – `BoardView` (only reads state; `play_events()` animates then `sync()`),
   `PieceView` (leaning character), `TerrainView` (terrain tiles), `PieceModelFactory`
   (models from `data/characters.json`), `Style`
-  (all colours/materials – use it for every new visual), `CameraRig` (orthographic,
-  straight down, never angled).
-- `combat/combat_director.gd` – battle presentation (step in, battle bar with dice needle,
-  strike, fall). A cinematic arena can later replace `play_battle()`.
+  (all colours/materials – use it for every new visual), `CameraRig` (angled perspective
+  view like Clash Royale; focus() for power cinematics, orbit_menu() behind the main menu).
+- `combat/` – `CombatDirector` runs a battle: FULL = `BattleArena`, a 6-8 s skippable cinematic in
+  an arena built from the battle square's terrain, with `BattleHealthBar`s over the fighters
+  (power = win chance; blows are scripted so the dice result wins). QUICK = short on-board fight.
 - `ai/ai_player.gd` – alpha-beta over legal actions (moves + powers).
 - `ui/` – `Hud` (built in code), `UiKit` (cartoon widgets), `Texts` (all Hebrew strings).
 
 ## Art assets
-- Concept: Sun = golden heroes with halos; Void = skeleton army with orbiting purple crystals
-  (`PieceModelFactory._add_aura`).
-- Characters: Light team = KayKit Adventurers (`assets/characters/kaykit/`), Shadow team = KayKit
-  Skeletons (`assets/characters/skeletons/`), both CC0. Per team and piece: model, visible props,
-  attached weapons, scale and animation names in `data/characters.json`.
+- Owner's direction: dark medieval look; cute, funny characters with personality; BOTH kingdoms
+  use the same characters in different colours. New character models are pending (owner will
+  decide how to make them); until then KayKit Adventurers (CC0) in `assets/characters/kaykit/`.
+  Per team and piece: model, visible props, scale, animation names in `data/characters.json`.
   Team colours = recoloured textures made by `tools/recolor_textures.py` (`*_light.png`, `*_shadow.png`).
 - Scenery: KayKit Medieval Hexagon (CC0) in `assets/environment/kaykit/`, placed by `presentation/scenery.gd`.
 - Only GitHub and package registries are reachable from cloud sessions (itch.io etc. are blocked).
 - Still missing: a dragon for the knight piece (currently a crossbow ranger).
 - The board never rotates; whose turn it is shows through lighting (`Style.MOOD`), the frame strip and the HUD.
+- UI style: forged iron + glowing runes (`ui/rune_button.gd`, `ui/metal_decor.gd`); main menu is
+  a live scene (camera orbits the field) with logo on top and options at the bottom.
 - Power cards: `ui/power_card.gd` (vector-drawn art per power, themes in `Style.POWER_THEME`).
 - Click picking uses the characters' screen shape (`BoardView.square_at_screen`), since they lean up the screen.
 
@@ -50,6 +52,9 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
   10..95. Loser dies; a bishop (phase trait) that loses its attack survives and stays home.
   Dice live in `GameState.rng_state` (deterministic); `Rules.Outcome` forces results for the AI.
 - Energy: each miner +1 per own turn start, +1 more on a mine. Max 15. Powers cost energy.
+- Powers hit areas: decree shields all king's neighbours, frost storm freezes target + adjacent
+  enemies, fire burns a plus shape, giant shove pushes 2 and stuns, shield wall braces adjacent
+  soldiers, swap shields the ally, double shift gives 3 energy. Each cast is a short camera cinematic.
 - Win: kill the enemy king. Draw at `turn_limit` plies.
 - AI (`ai/ai_player.gd`): expectimax over battle outcomes.
 
