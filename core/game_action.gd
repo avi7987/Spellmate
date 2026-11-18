@@ -3,7 +3,7 @@ extends RefCounted
 ## A single thing a player does on their turn: a chess move OR an ability.
 ## Actions are plain data so they can be saved, replayed or sent over a network.
 
-enum Type { MOVE, ABILITY }
+enum Type { MOVE, ABILITY, PASS }
 
 var type: int = Type.MOVE
 var from: int = -1
@@ -29,6 +29,12 @@ static func ability(p_id: String, p_from: int, p_target: int) -> GameAction:
 	a.ability_id = p_id
 	a.from = p_from
 	a.to = p_target
+	return a
+
+
+static func pass_turn() -> GameAction:
+	var a := GameAction.new()
+	a.type = Type.PASS
 	return a
 
 
@@ -58,7 +64,6 @@ static func from_dict(d: Dictionary) -> GameAction:
 func _to_string() -> String:
 	if type == Type.ABILITY:
 		return "%s:%s>%s" % [ability_id, Chess.square_name(from), Chess.square_name(to)]
-	var s := Chess.square_name(from) + Chess.square_name(to)
-	if promotion != 0:
-		s += Chess.KIND_CHARS[promotion]
-	return s
+	if type == Type.PASS:
+		return "pass"
+	return Chess.square_name(from) + Chess.square_name(to)

@@ -36,6 +36,12 @@
 			"show": ["Knight_Helmet", "Round_Shield", "1H_Sword"], "scale": 0.47,
 			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Stab",
 			"cast": "Block", "hit": "Block_Hit", "death": "Death_A", "victory": "Cheer"
+		},
+		"miner": {
+			"model": "res://assets/characters/kaykit/Barbarian.glb", "texture": "barbarian_texture",
+			"show": ["1H_Axe"], "scale": 0.45,
+			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
 		}
 	},
 	"shadow": {
@@ -86,6 +92,13 @@
 			],
 			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Stab",
 			"cast": "Block", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
+		},
+		"miner": {
+			"model": "res://assets/characters/skeletons/Skeleton_Minion.glb", "texture": "skeleton_texture",
+			"show": [], "glow_eyes": true, "scale": 0.45,
+			"attach": [{ "model": "res://assets/characters/skeletons/Skeleton_Axe.gltf", "bone": "handslot.r" }],
+			"idle": "Idle", "move": "Walking_A", "attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact", "hit": "Hit_A", "death": "Death_A", "victory": "Cheer"
 		}
 	}
 }

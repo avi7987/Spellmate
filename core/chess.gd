@@ -1,15 +1,28 @@
 class_name Chess
 extends RefCounted
 ## Shared constants and small helpers for the rules engine.
-## Squares are ints 0..63: square = rank * 8 + file. Rank 0 is White's back rank.
+## The battlefield is W x H squares. square = rank * W + file. Rank 0 is the
+## Sun's (White's) back row, rank H-1 the Void's (Black's).
 
-enum Kind { NONE = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6 }
+const W := 12
+const H := 12
+const N := W * H
 
-const WHITE := 0
-const BLACK := 1
+enum Kind { NONE = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6, MINER = 7 }
+enum Terrain { PLAIN, FOREST, HILL, WATER, BRIDGE, MINE, CASTLE }
 
-const FILES := "abcdefgh"
-const KIND_CHARS := { Kind.PAWN: "p", Kind.KNIGHT: "n", Kind.BISHOP: "b", Kind.ROOK: "r", Kind.QUEEN: "q", Kind.KING: "k" }
+const WHITE := 0   ## the Sun kingdom
+const BLACK := 1   ## the Void kingdom
+
+const FILES := "abcdefghijkl"
+const KIND_NAMES := {
+	Kind.PAWN: "pawn", Kind.KNIGHT: "knight", Kind.BISHOP: "bishop", Kind.ROOK: "rook",
+	Kind.QUEEN: "queen", Kind.KING: "king", Kind.MINER: "miner",
+}
+const TERRAIN_CHARS := {
+	".": Terrain.PLAIN, "f": Terrain.FOREST, "h": Terrain.HILL, "~": Terrain.WATER,
+	"=": Terrain.BRIDGE, "m": Terrain.MINE, "c": Terrain.CASTLE,
+}
 
 const KNIGHT_OFFSETS := [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]]
 const KING_OFFSETS := [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]]
@@ -18,19 +31,20 @@ const BISHOP_DIRS := [[1, 1], [1, -1], [-1, 1], [-1, -1]]
 
 
 static func sq(file: int, rank: int) -> int:
-	return rank * 8 + file
+	return rank * W + file
 
 
 static func file_of(s: int) -> int:
-	return s & 7
+	return s % W
 
 
 static func rank_of(s: int) -> int:
-	return s >> 3
+	@warning_ignore("integer_division")
+	return s / W
 
 
 static func on_board(file: int, rank: int) -> bool:
-	return file >= 0 and file < 8 and rank >= 0 and rank < 8
+	return file >= 0 and file < W and rank >= 0 and rank < H
 
 
 static func other(color: int) -> int:
@@ -41,33 +55,33 @@ static func is_light_square(s: int) -> bool:
 	return (file_of(s) + rank_of(s)) % 2 == 1
 
 
-## Direction a pawn of this color walks (+1 rank for White, -1 for Black).
-static func forward(color: int) -> int:
-	return 1 if color == WHITE else -1
-
-
-static func promotion_rank(color: int) -> int:
-	return 7 if color == WHITE else 0
+## The square seen from the other side (the map and armies are point-symmetric).
+static func mirror(s: int) -> int:
+	return sq(W - 1 - file_of(s), H - 1 - rank_of(s))
 
 
 static func square_name(s: int) -> String:
-	if s < 0 or s > 63:
+	if s < 0 or s >= N:
 		return "-"
 	return FILES[file_of(s)] + str(rank_of(s) + 1)
 
 
 static func parse_square(text: String) -> int:
-	if text.length() != 2:
+	if text.length() < 2:
 		return -1
 	var f := FILES.find(text[0])
-	var r := int(text[1]) - 1
-	if f < 0 or r < 0 or r > 7:
+	var r := int(text.substr(1)) - 1
+	if f < 0 or r < 0 or r >= H:
 		return -1
 	return sq(f, r)
 
 
-static func kind_from_char(c: String) -> int:
-	for k in KIND_CHARS:
-		if KIND_CHARS[k] == c.to_lower():
+static func kind_from_name(name: String) -> int:
+	for k in KIND_NAMES:
+		if KIND_NAMES[k] == name:
 			return k
 	return Kind.NONE
+
+
+static func distance(a: int, b: int) -> int:
+	return maxi(absi(file_of(a) - file_of(b)), absi(rank_of(a) - rank_of(b)))

@@ -9,7 +9,6 @@ signal new_game_requested(vs_ai: bool, powers: bool, level: int)
 signal undo_requested
 signal power_pressed
 signal cancel_pressed
-signal promotion_chosen(kind: int)
 
 const VIGNETTE_SHADER := """
 shader_type canvas_item;
@@ -40,7 +39,16 @@ var _menu: Control
 var _menu_resume: Button
 var _over: Control
 var _over_label: Label
-var _promo: Control
+var _battle: Control
+var _battle_bar: Control
+var _battle_title: Label
+var _battle_result: Label
+var _battle_names: Label
+var _odds_panel: PanelContainer
+var _odds_title: Label
+var _odds_body: Label
+var _card_trait: Label
+var _card_moves: Label
 var _turn_color := -1
 
 var _vs_ai := true
@@ -78,7 +86,8 @@ func _ready() -> void:
 	_build_flash()
 	_build_menu()
 	_build_game_over()
-	_build_promotion()
+	_build_battle_bar()
+	_build_odds_panel()
 
 
 # ------------------------------------------------------------ building
@@ -146,12 +155,12 @@ func _build_team_cards() -> void:
 		v.add_child(energy)
 		var pips := HBoxContainer.new()
 		pips.alignment = BoxContainer.ALIGNMENT_CENTER
-		pips.add_theme_constant_override("separation", 2)
+		pips.add_theme_constant_override("separation", 1)
 		pips.layout_direction = Control.LAYOUT_DIRECTION_RTL
 		v.add_child(pips)
 		for i in Balance.energy_max():
 			var pip := Panel.new()
-			pip.custom_minimum_size = Vector2(17, 24)
+			pip.custom_minimum_size = Vector2(11, 22)
 			pips.add_child(pip)
 		var captured := UiKit.label("", 15, UiKit.TEXT_SOFT)
 		v.add_child(captured)
@@ -173,6 +182,10 @@ func _build_character_panel() -> void:
 	v.add_child(_card_name)
 	_card_role = UiKit.label("", 16, UiKit.TEXT_SOFT)
 	v.add_child(_card_role)
+	_card_moves = UiKit.label("", 15, UiKit.TEXT_SOFT)
+	v.add_child(_card_moves)
+	_card_trait = UiKit.label("", 15, Color(1.0, 0.82, 0.5))
+	v.add_child(_card_trait)
 	_card_status = UiKit.label("", 15, Color(0.6, 0.85, 1.0))
 	v.add_child(_card_status)
 	var center := CenterContainer.new()
@@ -305,17 +318,108 @@ func _build_game_over() -> void:
 	_over.visible = false
 
 
-func _build_promotion() -> void:
-	_promo = _overlay()
-	var v := _center_panel(_promo, 460)
-	v.add_child(UiKit.title(Texts.PROMOTE, 28))
-	for kind in [Chess.Kind.QUEEN, Chess.Kind.ROOK, Chess.Kind.BISHOP, Chess.Kind.KNIGHT]:
-		var b := UiKit.button(Texts.CHESS_ROLE[kind], UiKit.BUTTON_STEEL, 22)
-		b.pressed.connect(func():
-			_promo.visible = false
-			promotion_chosen.emit(kind))
-		v.add_child(b)
-	_promo.visible = false
+## The battle bar: shows the attacker's win chance, then a needle spins and
+## lands on the dice roll.
+func _build_battle_bar() -> void:
+	_battle = Control.new()
+	_battle.set_anchors_preset(Control.PRESET_CENTER)
+	_battle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_battle)
+	var panel := UiKit.panel()
+	panel.position = Vector2(-280, -120)
+	panel.custom_minimum_size = Vector2(560, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_battle.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	panel.add_child(v)
+	_battle_title = UiKit.title(Texts.BATTLE, 34, Color(1.0, 0.45, 0.3))
+	v.add_child(_battle_title)
+	_battle_names = UiKit.label("", 18, UiKit.TEXT)
+	v.add_child(_battle_names)
+	_battle_bar = BattleBar.new()
+	_battle_bar.custom_minimum_size = Vector2(520, 46)
+	v.add_child(_battle_bar)
+	_battle_result = UiKit.title("", 32)
+	v.add_child(_battle_result)
+	_battle.visible = false
+
+
+## Hover panel that explains the win chance of an attack.
+func _build_odds_panel() -> void:
+	_odds_panel = UiKit.panel()
+	_odds_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_odds_panel.position = Vector2(-262, -196)
+	_odds_panel.custom_minimum_size = Vector2(248, 0)
+	_odds_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_odds_panel)
+	var v := VBoxContainer.new()
+	_odds_panel.add_child(v)
+	_odds_title = UiKit.title("", 20)
+	v.add_child(_odds_title)
+	_odds_body = UiKit.label("", 16, UiKit.TEXT)
+	v.add_child(_odds_body)
+	_odds_panel.visible = false
+
+
+func show_odds(odds: Dictionary, attacker: String, defender: String) -> void:
+	_odds_title.text = "%s  %d%%" % [Texts.WIN_CHANCE, odds["chance"]]
+	_odds_title.add_theme_color_override("font_color", _chance_color(odds["chance"]))
+	var lines := ["%s  נגד  %s" % [attacker, defender]]
+	for l in odds["lines"]:
+		var d: int = l[1]
+		lines.append("%s   %s%d%%" % [Texts.odds_line(l[0]), "+" if d > 0 else "", d])
+	_odds_body.text = "\n".join(lines)
+	_odds_panel.visible = true
+
+
+func hide_odds() -> void:
+	_odds_panel.visible = false
+
+
+static func _chance_color(c: int) -> Color:
+	if c >= 65:
+		return Color(0.45, 0.95, 0.45)
+	if c >= 45:
+		return Color(1.0, 0.85, 0.35)
+	return Color(1.0, 0.4, 0.3)
+
+
+func play_battle_bar(e: Dictionary) -> void:
+	hide_odds()
+	# The attacker is the side that just moved (the game already switched turns).
+	_battle.visible = true
+	_battle.modulate.a = 0.0
+	_battle_result.text = ""
+	_battle_names.text = "%s  נגד  %s" % [Texts.character(e["attacker_kind"], _last_mover), Texts.character(e["defender_kind"], Chess.other(_last_mover))]
+	var bar := _battle_bar as BattleBar
+	bar.setup(e["chance"])
+	var tw := create_tween()
+	tw.tween_property(_battle, "modulate:a", 1.0, 0.2)
+	await tw.finished
+	await bar.spin_to(e["roll"], 1.3)
+	var won: bool = e["won"]
+	if won:
+		_battle_result.text = Texts.VICTORY
+		_battle_result.add_theme_color_override("font_color", Color(0.45, 0.95, 0.45))
+	elif e["phased"]:
+		_battle_result.text = Texts.PHASED
+		_battle_result.add_theme_color_override("font_color", Style.power_color("swap"))
+	else:
+		_battle_result.text = Texts.DEFEAT
+		_battle_result.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
+	await get_tree().create_timer(0.55).timeout
+	var tw2 := create_tween()
+	tw2.tween_property(_battle, "modulate:a", 0.0, 0.25)
+	tw2.tween_callback(func(): _battle.visible = false)
+
+
+var _last_mover := Chess.WHITE
+
+
+## The main scene tells the HUD who just acted (for battle names).
+func set_last_mover(color: int) -> void:
+	_last_mover = color
 
 
 # ------------------------------------------------------------ updating
@@ -325,14 +429,10 @@ func show_menu(visible_now: bool, can_resume: bool = true) -> void:
 	_menu_resume.visible = can_resume
 
 
-func show_promotion() -> void:
-	_promo.visible = true
-
-
 func show_game_over(result: Dictionary) -> void:
 	var reason: String = result["reason"]
 	var text: String = Texts.RESULT.get(reason, "")
-	if reason == "checkmate":
+	if reason == "king":
 		var winner := Chess.WHITE if result["result"] == Rules.Result.WHITE_WINS else Chess.BLACK
 		text = text % Texts.TEAM[winner]
 		_over_label.add_theme_color_override("font_color", Style.team(winner)["ui"])
@@ -365,7 +465,7 @@ func update_state(state: GameState, controller: GameController) -> void:
 	if me != _turn_color:
 		_turn_color = me
 		_set_turn_look(me)
-	var lost := { Chess.WHITE: 16, Chess.BLACK: 16 }
+	var lost := { Chess.WHITE: 16, Chess.BLACK: 16 }  # 16 - alive + 2 = units (14 per side)
 	for p in state.all_pieces():
 		lost[p.color] -= 1
 	for color in _team_cards:
@@ -396,7 +496,7 @@ func update_state(state: GameState, controller: GameController) -> void:
 			sbp.border_color = Color(0.85, 0.95, 1.0, 0.8) if i < e else Color(0.3, 0.27, 0.24)
 			sbp.set_border_width_all(1)
 			pips[i].add_theme_stylebox_override("panel", sbp)
-		c["captured"].text = Texts.CAPTURED % lost[Chess.other(color)]
+		c["captured"].text = "%s   ·   %s" % [Texts.INCOME % state.income(color), Texts.UNITS_LEFT % (16 - lost[color])]
 	_undo_btn.disabled = not controller.can_undo()
 
 
@@ -440,7 +540,11 @@ func show_character(state: GameState, s: int, power_targets: int, targeting: boo
 	_char_panel.visible = true
 	_card_name.text = Texts.character(p.kind, p.color)
 	_card_name.add_theme_color_override("font_color", Style.team(p.color)["ui"])
-	_card_role.text = "%s · %s" % [Texts.CHESS_ROLE[p.kind], Texts.TEAM[p.color]]
+	_card_role.text = "%s · %s" % [Texts.ROLE[p.kind], Texts.TEAM[p.color]]
+	var mt := UnitData.move_type(p.kind)
+	_card_moves.text = Texts.MOVES[mt] % UnitData.move_range(p.kind) if mt != "knight" else Texts.MOVES[mt]
+	var tr: Array = Texts.TRAIT.get(UnitData.trait_id(p.kind), ["", ""])
+	_card_trait.text = "%s: %s" % [tr[0], tr[1]]
 	var flags := []
 	if state.is_frozen(p):
 		flags.append(Texts.FROZEN)
@@ -459,8 +563,6 @@ func show_character(state: GameState, s: int, power_targets: int, targeting: boo
 		status = Texts.CHOOSE_TARGET
 	elif wait > 0:
 		status = Texts.COOLDOWN % wait
-	elif Rules.in_check(state, p.color) and mine:
-		status = Texts.IN_CHECK_NO_POWER
 	elif int(state.energy[p.color]) < ab.cost:
 		status = Texts.NOT_ENOUGH
 	elif power_targets == 0 and mine:

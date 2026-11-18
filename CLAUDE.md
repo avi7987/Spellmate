@@ -1,7 +1,9 @@
 # Spellmate – notes for AI assistants and developers
 
-Fantasy chess for the browser (Godot 4.7, GDScript, GL Compatibility renderer).
-Every piece moves like normal chess and has one super power paid for with energy.
+Turn-based fantasy war game for the browser, born from chess (Godot 4.7, GDScript,
+GL Compatibility renderer). Sun Kingdom vs Void Kingdom on a 12x12 battlefield with
+terrain. Units move in chess patterns with a max range; attacking starts a battle with a
+win chance; miners produce energy for super powers; killing the enemy king wins.
 Design doc (Hebrew GDD): https://claude.ai/artifact/HXu7MHfE4DuFUTcmkgh3To
 The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebrew.
 
@@ -15,16 +17,18 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
 - `game/game_controller.gd` – owns the match, undo stack, AI turns; emits signals.
 - `game/main.gd` – builds the scene and turns clicks into actions.
 - `presentation/` – `BoardView` (only reads state; `play_events()` animates then `sync()`),
-  `PieceView` (leaning character), `PieceModelFactory` (placeholder models; a real
-  `assets/characters/<kind>.glb` replaces a placeholder automatically), `Style`
+  `PieceView` (leaning character), `TerrainView` (terrain tiles), `PieceModelFactory`
+  (models from `data/characters.json`), `Style`
   (all colours/materials – use it for every new visual), `CameraRig` (orthographic,
   straight down, never angled).
-- `combat/combat_director.gd` – capture battle; currently a quick on-board effect.
-  Phase 4 replaces `play_capture()` with a cinematic arena scene.
+- `combat/combat_director.gd` – battle presentation (step in, battle bar with dice needle,
+  strike, fall). A cinematic arena can later replace `play_battle()`.
 - `ai/ai_player.gd` – alpha-beta over legal actions (moves + powers).
 - `ui/` – `Hud` (built in code), `UiKit` (cartoon widgets), `Texts` (all Hebrew strings).
 
 ## Art assets
+- Concept: Sun = golden heroes with halos; Void = skeleton army with orbiting purple crystals
+  (`PieceModelFactory._add_aura`).
 - Characters: Light team = KayKit Adventurers (`assets/characters/kaykit/`), Shadow team = KayKit
   Skeletons (`assets/characters/skeletons/`), both CC0. Per team and piece: model, visible props,
   attached weapons, scale and animation names in `data/characters.json`.
@@ -37,17 +41,24 @@ The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebr
 - Click picking uses the characters' screen shape (`BoardView.square_at_screen`), since they lean up the screen.
 
 ## Rules decisions
-- Using a power replaces the move. Energy: +1 at the start of each own turn, +1 per capture, max 10.
-- A power may never leave the own king in check and never affects a king.
-- No powers while in check: check must be answered with a normal chess move, so mate works as in chess.
-- Lava blocks landing and sliding (also blocks check lines); knights jump over it.
-- Frozen pieces cannot move/use powers but still give check.
-- Effects store an absolute expiry ply (`state.ply + duration`).
+- Board size, terrain map and starting army: `data/map.json`. Unit types (move pattern, range,
+  battle bonuses, trait, AI value): `data/units.json`. Balance (energy, battle numbers): `data/balance.json`.
+- A turn = one action: move (moving onto an enemy = battle) or use a power. No check rules.
+- Terrain: water blocks (bridges ok), forest stops sliding units and gives +defense,
+  hill gives +attack, castle gives its owner +defense, mines double a miner's income.
+- Battle (`core/combat.gd`): attacker chance = base 60 + atk - def + terrain + effects, clamped
+  10..95. Loser dies; a bishop (phase trait) that loses its attack survives and stays home.
+  Dice live in `GameState.rng_state` (deterministic); `Rules.Outcome` forces results for the AI.
+- Energy: each miner +1 per own turn start, +1 more on a mine. Max 15. Powers cost energy.
+- Win: kill the enemy king. Draw at `turn_limit` plies.
+- AI (`ai/ai_player.gd`): expectimax over battle outcomes.
 
 ## Commands
 ```bash
 godot --headless --import                            # first time / after adding files
-godot --headless --script res://tests/run_tests.gd   # all tests (perft + powers)
+godot --headless --script res://tests/run_tests.gd   # all tests (rules + powers)
+godot --headless --script res://tools/simulate.gd    # computer vs computer battles
+godot --headless --script res://tools/autoplay.gd -- aiai   # AI vs AI through the real UI
 xvfb-run -a godot --rendering-driver opengl3 --script res://tools/screenshot.gd -- out.png "e2e4,e7e5" nomenu
 ```
 CI (`.github/workflows/web.yml`) runs the tests and publishes the web build to GitHub Pages.

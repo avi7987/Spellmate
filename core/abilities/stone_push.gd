@@ -1,7 +1,7 @@
 extends Ability
 ## Rook (the Stone Golem) - "Stone Shove": pushes an orthogonally adjacent enemy
 ## piece (not the king, not shielded) one square directly away, if that square
-## is empty and not lava. Pawns cannot be pushed onto the first/last rank.
+## can be walked on (not water, not fire). Pushing into a river is not allowed.
 
 
 func _init() -> void:
@@ -17,10 +17,7 @@ func push_destination(state: GameState, from: int, target: int) -> int:
 	if not Chess.on_board(f, r):
 		return -1
 	var dest := Chess.sq(f, r)
-	if state.piece_at(dest) != null or state.is_lava(dest):
-		return -1
-	var t := state.piece_at(target)
-	if t.kind == Chess.Kind.PAWN and (r == 0 or r == 7):
+	if state.piece_at(dest) != null or not state.is_walkable(dest):
 		return -1
 	return dest
 

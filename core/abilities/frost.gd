@@ -1,5 +1,5 @@
 extends Ability
-## Queen (the Archwitch) - "Frost Spell": an enemy piece (not the king) that the
+## Queen - "Frost Spell": an enemy unit (not the king) that the
 ## queen could reach is frozen: it cannot move or use its power on the next turn.
 ## A frozen piece still threatens squares.
 
@@ -13,12 +13,15 @@ func _init() -> void:
 func targets(state: GameState, from: int) -> Array:
 	var q := state.piece_at(from)
 	var out := []
+	var reach := UnitData.move_range(q.kind)
 	for d in Chess.ROOK_DIRS + Chess.BISHOP_DIRS:
 		var f: int = Chess.file_of(from) + d[0]
 		var r: int = Chess.rank_of(from) + d[1]
-		while Chess.on_board(f, r):
+		var steps := 0
+		while Chess.on_board(f, r) and steps < reach:
+			steps += 1
 			var s := Chess.sq(f, r)
-			if state.is_lava(s):
+			if not state.is_walkable(s):
 				break
 			var t := state.piece_at(s)
 			if t != null:

@@ -22,8 +22,3 @@ func copy() -> Piece:
 	p.has_moved = has_moved
 	p.ability_ready_ply = ability_ready_ply
 	return p
-
-
-func fen_char() -> String:
-	var c: String = Chess.KIND_CHARS[kind]
-	return c.to_upper() if color == Chess.WHITE else c

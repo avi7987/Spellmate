@@ -6,7 +6,7 @@ extends Node3D
 ##        ▲                                │
 ##        └──────── submit_action ◄── clicks on squares
 
-enum Mode { IDLE, SELECTED, TARGETING, PROMOTION, BUSY }
+enum Mode { IDLE, SELECTED, TARGETING, BUSY }
 
 var controller: GameController
 var board: BoardView
@@ -19,7 +19,6 @@ var _sun: DirectionalLight3D
 var _mode: int = Mode.IDLE
 var _selected := -1
 var _selected_actions: Array = []
-var _pending_promotion: Array = []
 var _last_move: Array = []
 
 
@@ -39,6 +38,7 @@ func _ready() -> void:
 	board.combat = combat
 	hud = Hud.new()
 	add_child(hud)
+	combat.hud = hud
 
 	controller.game_started.connect(_on_game_started)
 	controller.action_applied.connect(_on_action_applied)
@@ -46,11 +46,11 @@ func _ready() -> void:
 	controller.ai_thinking.connect(func(on): hud.set_thinking(on))
 	board.square_clicked.connect(_on_square_clicked)
 	board.presentation_done.connect(_on_presentation_done)
+	board.square_hovered.connect(_on_square_hovered)
 	hud.new_game_requested.connect(func(vs_ai, powers, level): controller.new_game(vs_ai, powers, level))
 	hud.undo_requested.connect(_on_undo)
 	hud.power_pressed.connect(_on_power_pressed)
 	hud.cancel_pressed.connect(_clear_selection)
-	hud.promotion_chosen.connect(_on_promotion_chosen)
 
 	# Show a board behind the menu right away.
 	controller.new_game(true, true, 1)
@@ -122,6 +122,8 @@ func _on_action_applied(action: GameAction, events: Array, state: GameState) -> 
 	_last_move = [action.from, action.to] if action.is_move() else []
 	board.clear_highlights()
 	hud.hide_character()
+	hud.hide_odds()
+	hud.set_last_mover(Chess.other(state.side_to_move))
 	board.play_events(events, state)
 
 
@@ -131,19 +133,16 @@ func _on_presentation_done() -> void:
 	_apply_mood(state.side_to_move)
 	if controller.is_over():
 		await _play_game_end()
-	elif Rules.in_check(state, state.side_to_move):
-		hud.flash(Texts.CHECK, Color(1.0, 0.35, 0.2))
 	_mode = Mode.IDLE
 	controller.on_presentation_done()
 
 
-## Checkmate: the king falls, the winners cheer, then the result screen.
+## The king fell: the winners cheer, then the result screen.
 func _play_game_end() -> void:
 	var r := controller.result
-	if r["reason"] == "checkmate":
-		var loser := controller.state.side_to_move
-		hud.flash(Texts.CHECKMATE, Color(1.0, 0.25, 0.15))
-		await board.play_checkmate(controller.state, loser)
+	if r["reason"] == "king":
+		hud.flash(Texts.KING_FELL, Color(1.0, 0.3, 0.2))
+		await board.play_victory(controller.state, controller.state.winner)
 	else:
 		await get_tree().create_timer(0.6).timeout
 	hud.show_game_over(r)
@@ -171,8 +170,11 @@ func _draw_base_highlights(state: GameState) -> void:
 	board.clear_highlights()
 	for s in _last_move:
 		board.mark(s, BoardView.Mark.LAST, Style.HL_LAST)
-	if Rules.in_check(state, state.side_to_move):
-		board.mark(state.find_king(state.side_to_move), BoardView.Mark.CHECK, Style.HL_CHECK)
+	# A red glow under a king that the enemy can attack next turn.
+	for color in [Chess.WHITE, Chess.BLACK]:
+		var k := state.find_king(color)
+		if k >= 0 and not MoveGen.attackers_of(state, k, Chess.other(color)).is_empty():
+			board.mark(k, BoardView.Mark.CHECK, Style.HL_CHECK)
 
 
 # ------------------------------------------------------------ clicking
@@ -181,7 +183,7 @@ func _draw_base_highlights(state: GameState) -> void:
 func _on_square_clicked(s: int, ground: int = -1) -> void:
 	if ground < 0:
 		ground = s
-	if _mode == Mode.BUSY or _mode == Mode.PROMOTION or not controller.is_human_turn():
+	if _mode == Mode.BUSY or not controller.is_human_turn():
 		return
 	var state := controller.state
 	if _mode == Mode.TARGETING:
@@ -194,17 +196,12 @@ func _on_square_clicked(s: int, ground: int = -1) -> void:
 		return
 	if _mode == Mode.SELECTED:
 		# The ground square wins for moves (a head may overlap it); a click on an
-		# enemy's body counts as capturing it.
+		# enemy's body counts as attacking it.
 		for target in [ground, s]:
-			var moves := _selected_actions.filter(func(a): return a.is_move() and a.to == target)
-			if moves.size() == 1:
-				controller.submit_action(moves[0])
-				return
-			if moves.size() > 1:  # promotion: let the player choose
-				_pending_promotion = moves
-				_mode = Mode.PROMOTION
-				hud.show_promotion()
-				return
+			for a in _selected_actions:
+				if a.is_move() and a.to == target:
+					controller.submit_action(a)
+					return
 	var p := state.piece_at(s)
 	if p != null and p.color == state.side_to_move:
 		_select(s)
@@ -227,10 +224,12 @@ func _select(s: int) -> void:
 	var power_targets := 0
 	for a in _selected_actions:
 		if a.is_move():
-			var is_capture: bool = state.piece_at(a.to) != null \
-				or (state.piece_at(s).kind == Chess.Kind.PAWN and a.to == state.ep_square)
-			board.mark(a.to, BoardView.Mark.CAPTURE if is_capture else BoardView.Mark.MOVE,
-				Style.HL_CAPTURE if is_capture else Style.HL_MOVE)
+			if Rules.is_attack(state, a):
+				var ch := Combat.chance(state, a.from, a.to)
+				board.mark(a.to, BoardView.Mark.CAPTURE, Style.HL_CAPTURE)
+				board.mark_text(a.to, "%d%%" % ch, Hud._chance_color(ch))
+			else:
+				board.mark(a.to, BoardView.Mark.MOVE, Style.HL_MOVE)
 		else:
 			power_targets += 1
 	hud.show_character(state, s, power_targets, false)
@@ -253,13 +252,20 @@ func _on_power_pressed() -> void:
 	hud.set_hint(Texts.CHOOSE_TARGET)
 
 
-func _on_promotion_chosen(kind: int) -> void:
-	for a in _pending_promotion:
-		if a.promotion == kind:
-			_pending_promotion = []
-			_mode = Mode.IDLE
-			controller.submit_action(a)
+## Hovering an attack target explains the win chance.
+func _on_square_hovered(s: int) -> void:
+	if _mode != Mode.SELECTED or s < 0:
+		hud.hide_odds()
+		return
+	var state := controller.state
+	for a in _selected_actions:
+		if a.is_move() and a.to == s and Rules.is_attack(state, a):
+			var att := state.piece_at(a.from)
+			var def := state.piece_at(a.to)
+			hud.show_odds(Combat.odds(state, a.from, a.to), Texts.character(att.kind, att.color),
+				Texts.character(def.kind, def.color))
 			return
+	hud.hide_odds()
 
 
 func _clear_selection() -> void:
@@ -268,6 +274,7 @@ func _clear_selection() -> void:
 	if _mode != Mode.BUSY:
 		_mode = Mode.IDLE
 	hud.hide_character()
+	hud.hide_odds()
 	hud.set_hint("")
 	if controller != null and controller.state != null:
 		_draw_base_highlights(controller.state)

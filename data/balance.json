@@ -1,17 +1,31 @@
 {
 	"_comment": "Balance numbers. Change values here - no code changes needed. cooldown = own turns, duration = plies (half-turns).",
 	"energy": {
-		"start": 0,
-		"max": 10,
-		"per_turn": 1,
-		"per_capture": 1
+		"start": 2,
+		"max": 15,
+		"per_miner": 1,
+		"mine_bonus": 1
 	},
+	"combat": {
+		"base_attack": 60,
+		"min": 10,
+		"max": 95,
+		"hill_attack": 10,
+		"forest_defense": 15,
+		"castle_defense": 10,
+		"phalanx_per_ally": 10,
+		"phalanx_max": 20,
+		"frozen_defender": 15,
+		"brace_defense": 25
+	},
+	"turn_limit": 400,
 	"abilities": {
 		"royal_decree": { "cost": 3, "cooldown": 4, "duration": 2 },
 		"frost":        { "cost": 4, "cooldown": 3, "duration": 2 },
 		"stone_push":   { "cost": 3, "cooldown": 3 },
 		"swap":         { "cost": 3, "cooldown": 3 },
 		"fire_breath":  { "cost": 2, "cooldown": 3, "duration": 4 },
-		"charge":       { "cost": 2, "cooldown": 2 }
+		"brace":        { "cost": 1, "cooldown": 2, "duration": 2 },
+		"toil":         { "cost": 0, "cooldown": 3, "gain": 2 }
 	}
 }

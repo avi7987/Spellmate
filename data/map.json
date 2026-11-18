@@ -1,0 +1,22 @@
+{
+	"_comment": "Battlefield 12x12. Rows from the top (rank 12, Void side) to the bottom (rank 1, Sun side). . plain  f forest  h hill  ~ water  = bridge  m crystal mine  c castle. The map is point-symmetric so both sides are equal.",
+	"rows": [
+		"....cccc....",
+		"............",
+		"........m...",
+		"...m.ff.....",
+		".ff......h.m",
+		"~==~~hh~~==~",
+		"~==~~hh~~==~",
+		"m.h......ff.",
+		".....ff.m...",
+		"...m........",
+		"............",
+		"....cccc...."
+	],
+	"_army": "Starting army of the Sun (bottom). The Void army is the same, rotated 180 degrees. Squares are file+rank, files a-l, ranks 1-12.",
+	"army": {
+		"c1": "rook", "d1": "knight", "e1": "bishop", "f1": "queen", "g1": "king", "h1": "bishop", "i1": "knight", "j1": "rook",
+		"c2": "miner", "d2": "pawn", "e2": "pawn", "h2": "pawn", "i2": "pawn", "j2": "miner"
+	}
+}

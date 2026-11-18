@@ -7,8 +7,11 @@ extends Node3D
 ## square = the character clicked (or the ground square); ground = the square under the cursor.
 signal square_clicked(square: int, ground: int)
 signal presentation_done
+signal square_hovered(square: int)
 
 const TILE_HEIGHT := 0.2
+const HALF_W := (Chess.W - 1) / 2.0
+const HALF_H := (Chess.H - 1) / 2.0
 
 var combat: CombatDirector
 var camera_rig: CameraRig
@@ -22,15 +25,24 @@ var _pieces_root: Node3D
 var _facing_yaw := 0.0
 var _scenery: Scenery
 var _accent_mat: StandardMaterial3D
+var _terrain_view: TerrainView
+var _terrain: PackedInt32Array
 
 
-static func square_to_world(s: int) -> Vector3:
-	return Vector3(Chess.file_of(s) - 3.5, TILE_HEIGHT * 0.5, 3.5 - Chess.rank_of(s))
+## Centre of a square at board height 0.
+static func square_xz(s: int) -> Vector3:
+	return Vector3(Chess.file_of(s) - HALF_W, 0, HALF_H - Chess.rank_of(s))
+
+
+## Where a unit stands on a square (on top of the tile; hills are higher).
+func square_to_world(s: int) -> Vector3:
+	var t: int = _terrain[s] if _terrain.size() == Chess.N else Chess.Terrain.PLAIN
+	return square_xz(s) + Vector3(0, TerrainView.top_of(t), 0)
 
 
 static func world_to_square(p: Vector3) -> int:
-	var f := floori(p.x + 4.0)
-	var r := floori(4.0 - p.z)
+	var f := floori(p.x + Chess.W / 2.0)
+	var r := floori(Chess.H / 2.0 - p.z)
 	return Chess.sq(f, r) if Chess.on_board(f, r) else -1
 
 
@@ -57,24 +69,22 @@ func _build_board() -> void:
 	ground.position = Vector3(0, -0.3, 0)
 	add_child(ground)
 
-	_add_box(Vector3(9.3, 0.3, 9.3), Vector3(0, -0.2, 0), Style.matte(Style.FRAME_WOOD))
-	_add_box(Vector3(8.5, 0.32, 8.5), Vector3(0, -0.15, 0), Style.metal(Style.FRAME_GOLD))
-	# A glowing strip around the squares: its colour shows whose turn it is.
+	var fw := Chess.W + 1.3
+	var fh := Chess.H + 1.3
+	# Frame boxes stay below the river surface so the water shows.
+	_add_box(Vector3(fw, 0.3, fh), Vector3(0, -0.36, 0), Style.matte(Style.FRAME_WOOD))
+	_add_box(Vector3(Chess.W + 0.5, 0.1, Chess.H + 0.5), Vector3(0, -0.2, 0), Style.metal(Style.FRAME_GOLD))
+	# A glowing strip around the battlefield: its colour shows whose turn it is.
 	_accent_mat = StandardMaterial3D.new()
 	_accent_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_accent_mat.albedo_color = Style.MOOD[Chess.WHITE]["accent"]
-	for side in [[Vector3(8.16, 0.04, 0.08), Vector3(0, 0.02, 4.04)], [Vector3(8.16, 0.04, 0.08), Vector3(0, 0.02, -4.04)],
-			[Vector3(0.08, 0.04, 8.16), Vector3(4.04, 0.02, 0)], [Vector3(0.08, 0.04, 8.16), Vector3(-4.04, 0.02, 0)]]:
+	var ex := Chess.W / 2.0 + 0.06
+	var ez := Chess.H / 2.0 + 0.06
+	for side in [[Vector3(Chess.W + 0.2, 0.04, 0.08), Vector3(0, 0.02, ez)], [Vector3(Chess.W + 0.2, 0.04, 0.08), Vector3(0, 0.02, -ez)],
+			[Vector3(0.08, 0.04, Chess.H + 0.2), Vector3(ex, 0.02, 0)], [Vector3(0.08, 0.04, Chess.H + 0.2), Vector3(-ex, 0.02, 0)]]:
 		_add_box(side[0], side[1], _accent_mat)
-	for s in 64:
-		var light := Chess.is_light_square(s)
-		var c: Color = Style.TILE_LIGHT if light else Style.TILE_DARK
-		# Slight colour variation per tile makes the stone feel hand-made.
-		var n := (sin(s * 12.9898) * 43758.5453)
-		c = c.darkened((n - floorf(n)) * 0.06)
-		var tile := _add_box(Vector3(0.98, TILE_HEIGHT, 0.98), Vector3(square_to_world(s).x, 0, square_to_world(s).z),
-			Style.matte(c))
-		_tiles.append(tile)
+	_terrain_view = TerrainView.new()
+	add_child(_terrain_view)
 	_build_coordinates()
 	_scenery = Scenery.new()
 	add_child(_scenery)
@@ -92,9 +102,18 @@ func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 
 
 func _build_coordinates() -> void:
-	for i in 8:
-		_coord_label(Chess.FILES[i], Vector3(i - 3.5, 0.02, 4.42))
-		_coord_label(str(i + 1), Vector3(-4.42, 0.02, 3.5 - i))
+	for i in Chess.W:
+		_coord_label(Chess.FILES[i], Vector3(i - HALF_W, 0.02, Chess.H / 2.0 + 0.42))
+	for i in Chess.H:
+		_coord_label(str(i + 1), Vector3(-Chess.W / 2.0 - 0.42, 0.02, HALF_H - i))
+
+
+## Builds the squares' terrain (once per battle; the map does not change).
+func build_terrain(state: GameState) -> void:
+	if _terrain == state.terrain:
+		return
+	_terrain = state.terrain
+	_terrain_view.build(state.terrain)
 
 
 func _coord_label(text: String, pos: Vector3) -> void:
@@ -114,8 +133,9 @@ func _coord_label(text: String, pos: Vector3) -> void:
 # ------------------------------------------------------------ pieces
 
 func sync(state: GameState) -> void:
+	build_terrain(state)
 	var seen := {}
-	for s in 64:
+	for s in Chess.N:
 		var p := state.piece_at(s)
 		if p == null:
 			continue
@@ -132,7 +152,7 @@ func sync(state: GameState) -> void:
 		v.position = square_to_world(s)
 		v.set_facing(_facing_yaw)
 		v.set_kind(p.kind)
-		v.set_status(state.is_shielded(p), state.is_frozen(p))
+		v.set_status(state.is_shielded(p) or state.is_braced(p), state.is_frozen(p))
 	for id in _pieces.keys():
 		if not seen.has(id):
 			_pieces[id].queue_free()
@@ -155,26 +175,13 @@ func set_turn_accent(color: Color) -> void:
 	create_tween().tween_property(_accent_mat, "albedo_color", color, 0.8)
 
 
-## Checkmate: the losing king falls, the winning side cheers.
-func play_checkmate(state: GameState, loser: int) -> void:
-	var king_sq := state.find_king(loser)
+## Victory: the winning side cheers (the king already fell in battle).
+func play_victory(state: GameState, winner: int) -> void:
 	for v in _pieces.values():
 		var p := state.piece_at(v.square)
-		if p != null and p.color != loser:
+		if p != null and p.color == winner:
 			v.play_action("victory", 1.0)
-	var king: PieceView = null
-	for v in _pieces.values():
-		if v.square == king_sq:
-			king = v
-	if king == null:
-		return
-	var at := square_to_world(king_sq)
-	Effects.square_flash(self, at, Color(1, 0.2, 0.1, 0.9), 0.6)
-	Effects.burst(self, at + Vector3(0, 0.5, 0), Color(1.0, 0.3, 0.15), 40, 3.5)
-	Effects.ring(self, at, Color(1, 0.25, 0.1, 1.0), 2.0, 0.7)
-	if camera_rig != null:
-		camera_rig.shake(0.12, 0.4)
-	await king.fall()
+	await get_tree().create_timer(1.4).timeout
 
 
 func view_of(id: int) -> PieceView:
@@ -193,7 +200,7 @@ func _sync_lava(state: GameState) -> void:
 		mi.mesh = plane
 		var mat := Style.glow(Style.LAVA, 1.6)
 		mi.material_override = mat
-		mi.position = square_to_world(s) + Vector3(0, 0.105, 0)
+		mi.position = square_to_world(s) + Vector3(0, 0.005, 0)
 		_lava_root.add_child(mi)
 		var embers := CPUParticles3D.new()
 		embers.amount = 10
@@ -226,6 +233,8 @@ func clear_highlights() -> void:
 
 enum Mark { MOVE, CAPTURE, POWER, SELECTED, HOVER, LAST, CHECK }
 
+const PERCENT_FONT := preload("res://assets/fonts/SuezOne.ttf")
+
 const HIGHLIGHT_SHADER := preload("res://presentation/shaders/highlight.gdshader")
 
 
@@ -243,8 +252,25 @@ func mark(s: int, kind: int, color: Color, parent: Node3D = null) -> void:
 	mat.set_shader_parameter("mode", kind)
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.position = square_to_world(s) + Vector3(0, 0.102 + 0.001 * kind, 0)
+	mi.position = square_to_world(s) + Vector3(0, 0.002 + 0.001 * kind, 0)
 	(parent if parent != null else _highlight_root).add_child(mi)
+
+
+## A win-chance label floating on an attack target, e.g. "65%".
+func mark_text(s: int, text: String, color: Color) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font = PERCENT_FONT
+	l.font_size = 64
+	l.pixel_size = 0.0055
+	l.modulate = color
+	l.outline_modulate = Color(0.05, 0.02, 0.02)
+	l.outline_size = 16
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.render_priority = 10
+	l.position = square_to_world(s) + Vector3(0, 0.25, 0.32)
+	_highlight_root.add_child(l)
 
 
 var _hover_root: Node3D
@@ -263,6 +289,7 @@ func _update_hover(s: int) -> void:
 		c.queue_free()
 	if hover_enabled and s >= 0:
 		mark(s, Mark.HOVER, Style.HL_HOVER, _hover_root)
+	square_hovered.emit(s)
 
 
 # ------------------------------------------------------------ input
@@ -304,40 +331,31 @@ func square_at_screen(pos: Vector2) -> int:
 
 ## Animates what happened, then makes the view match the new state exactly.
 func play_events(events: Array, state: GameState) -> void:
-	var captured_ids := {}
+	var skip_moves := {}   # moves/deaths already shown as part of a battle
 	for e in events:
 		match e["type"]:
-			"capture":
-				captured_ids[e["piece_id"]] = e
-	for e in events:
-		match e["type"]:
+			"battle":
+				var a := view_of(e["attacker_id"])
+				var d := view_of(e["defender_id"])
+				skip_moves[e["attacker_id"]] = true
+				await combat.play_battle(e, a, d, square_to_world(e["from"]), square_to_world(e["to"]))
 			"move":
-				var v := view_of(e["piece_id"])
-				if v == null:
+				if skip_moves.has(e["piece_id"]):
 					continue
-				var target := square_to_world(e["to"])
-				var is_dragon: bool = v.kind == Chess.Kind.KNIGHT
-				# If this move captures, the battle plays once the attacker arrives.
-				var cap_event: Dictionary = {}
-				for id in captured_ids:
-					if captured_ids[id]["by_id"] == e["piece_id"]:
-						cap_event = captured_ids[id]
-				await v.move_to(target, 0.34, is_dragon)
-				if not cap_event.is_empty():
-					await combat.play_capture(v, view_of(cap_event["piece_id"]), square_to_world(cap_event["square"]))
-			"promote":
-				var pv := view_of(e["piece_id"])
-				if pv != null:
-					Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(1, 0.9, 0.4), 30)
-					pv.set_kind(e["kind"])
-					await pv.pop_in()
+				var v := view_of(e["piece_id"])
+				if v != null:
+					await v.move_to(square_to_world(e["to"]), 0.34, v.kind == Chess.Kind.KNIGHT)
 			"ability":
 				var caster := view_of(e["piece_id"])
-				Effects.ring(_fx_root, square_to_world(e["from"]), Style.HL_ABILITY, 1.4, 0.5)
+				Effects.ring(_fx_root, square_to_world(e["from"]), Style.power_color(e["ability_id"]), 1.4, 0.5)
 				if caster != null:
 					await caster.play_action("cast", 0.5)
 			"shield":
-				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(0.5, 0.8, 1.0), 20, 2.0)
+				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Style.power_color("royal_decree"), 20, 2.0)
+			"brace":
+				Effects.ring(_fx_root, square_to_world(e["square"]), Style.power_color("brace"), 1.0)
+			"toil":
+				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.4, 0), Style.CRYSTAL, 24, 2.0)
 			"freeze":
 				Effects.burst(_fx_root, square_to_world(e["square"]) + Vector3(0, 0.5, 0), Color(0.8, 0.95, 1.0), 30, 2.5)
 				Effects.ring(_fx_root, square_to_world(e["square"]), Style.ICE, 1.3)
@@ -355,12 +373,22 @@ func play_events(events: Array, state: GameState) -> void:
 				var b := view_of(e["other_id"])
 				for v in [a, b]:
 					if v != null:
-						Effects.burst(_fx_root, v.position + Vector3(0, 0.5, 0), Style.HL_ABILITY, 20, 2.0)
+						Effects.burst(_fx_root, v.position + Vector3(0, 0.5, 0), Style.power_color("swap"), 20, 2.0)
 				if a != null:
 					a.position = square_to_world(e["to"])
 					a.pop_in()
 				if b != null:
 					b.position = square_to_world(e["from"])
 					await b.pop_in()
+			"energy":
+				_energy_sparkles(state, e["color"])
 	sync(state)
 	presentation_done.emit()
+
+
+## Little crystal sparks over the miners that just produced energy.
+func _energy_sparkles(state: GameState, color: int) -> void:
+	for s in Chess.N:
+		var p := state.piece_at(s)
+		if p != null and p.color == color and p.kind == Chess.Kind.MINER:
+			Effects.burst(_fx_root, square_to_world(s) + Vector3(0, 0.9, 0), Style.CRYSTAL, 8, 1.2, 0.05)

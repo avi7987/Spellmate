@@ -13,10 +13,7 @@ extends RefCounted
 ##   "player": AnimationPlayer or null
 
 const DATA_PATH := "res://data/characters.json"
-const KIND_NAMES := {
-	Chess.Kind.PAWN: "pawn", Chess.Kind.KNIGHT: "knight", Chess.Kind.BISHOP: "bishop",
-	Chess.Kind.ROOK: "rook", Chess.Kind.QUEEN: "queen", Chess.Kind.KING: "king",
-}
+const KIND_NAMES := Chess.KIND_NAMES
 const TEAM_SUFFIX := { Chess.WHITE: "light", Chess.BLACK: "shadow" }
 
 static var _defs: Dictionary = {}
@@ -43,7 +40,7 @@ static func build(kind: int, color: int) -> Node3D:
 		Chess.Kind.ROOK: _golem(root, color)
 		Chess.Kind.BISHOP: _wizard(root, color)
 		Chess.Kind.KNIGHT: _dragon(root, color)
-		Chess.Kind.PAWN: _shieldbearer(root, color)
+		Chess.Kind.PAWN, Chess.Kind.MINER: _shieldbearer(root, color)
 	root.set_meta("anims", {})
 	root.set_meta("player", null)
 	return root
@@ -65,6 +62,7 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 			mi.material_override = mat
 	if def.get("crown", false):
 		_add_crown(model, color)
+	_add_aura(model, kind, color)
 	var s := float(def.get("scale", 0.5))
 	model.scale = Vector3.ONE * s
 	var anims := {}
@@ -127,6 +125,59 @@ static func _team_material(def: Dictionary, color: int) -> Material:
 	m.next_pass = o
 	_materials[tex_path] = m
 	return m
+
+
+## The two kingdoms' concept, shown on every unit:
+##  - Sun: a glowing golden halo behind the head of its holy leaders, and a warm
+##    sun disc under every unit's feet.
+##  - Void: shards of purple crystal floating around every unit (PieceView spins
+##    the node named "Orbit").
+static func _add_aura(model: Node3D, kind: int, color: int) -> void:
+	if color == Chess.WHITE:
+		if kind in [Chess.Kind.KING, Chess.Kind.QUEEN, Chess.Kind.BISHOP]:
+			var head := _head_attachment(model)
+			if head != null:
+				var halo := MeshInstance3D.new()
+				var t := TorusMesh.new()
+				t.inner_radius = 0.42
+				t.outer_radius = 0.52
+				halo.mesh = t
+				halo.material_override = Style.glow(Color(1.0, 0.82, 0.35), 2.2)
+				halo.position = Vector3(0, 0.75, -0.45)
+				halo.rotation_degrees = Vector3(90, 0, 0)
+				head.add_child(halo)
+	else:
+		var orbit := Node3D.new()
+		orbit.name = "Orbit"
+		orbit.position = Vector3(0, 1.3, 0)
+		model.add_child(orbit)
+		var shard := Style.glow(Color(0.7, 0.3, 1.0), 2.6)
+		for i in 3:
+			var mi := MeshInstance3D.new()
+			var c := CylinderMesh.new()
+			c.top_radius = 0.0
+			c.bottom_radius = 0.12
+			c.height = 0.34
+			c.radial_segments = 4
+			mi.mesh = c
+			mi.material_override = shard
+			var a := TAU * i / 3.0
+			mi.position = Vector3(cos(a) * 0.85, 0.25 * sin(a * 2.0), sin(a) * 0.85)
+			mi.rotation_degrees = Vector3(20, rad_to_deg(a), 15)
+			orbit.add_child(mi)
+
+
+static func _head_attachment(model: Node3D) -> BoneAttachment3D:
+	for b in model.find_children("*", "BoneAttachment3D", true, false):
+		if b.bone_name == "head":
+			return b
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.is_empty():
+		return null
+	var head := BoneAttachment3D.new()
+	head.bone_name = "head"
+	skels[0].add_child(head)
+	return head
 
 
 ## A big gold crown with gems on the head bone (KayKit has none, so we build one).

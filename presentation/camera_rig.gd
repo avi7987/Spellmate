@@ -5,7 +5,7 @@ extends Node3D
 ## `view_yaw` 0 = White at the bottom, 180 = Black at the bottom.
 
 const HEIGHT := 30.0
-const VIEW_SIZE := 10.4  ## world units visible vertically
+const VIEW_SIZE := 14.4  ## world units visible vertically
 
 var camera: Camera3D
 var view_yaw: float = 0.0

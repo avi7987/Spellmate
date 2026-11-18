@@ -1,0 +1,10 @@
+{
+	"_comment": "Unit types. move: all/orth/diag/knight, range = max squares (knights jump). atk/def = percent added in battles. value = how much the AI cares about the unit.",
+	"king":   { "move": "all",    "range": 1, "atk": 0,   "def": 15,  "trait": "royal_armor",  "value": 0 },
+	"queen":  { "move": "all",    "range": 4, "atk": 15,  "def": 0,   "trait": "arcane_strike", "value": 900 },
+	"rook":   { "move": "orth",   "range": 5, "atk": 0,   "def": 20,  "trait": "stone_skin",   "value": 500 },
+	"bishop": { "move": "diag",   "range": 5, "atk": 5,   "def": 5,   "trait": "phase",        "value": 330 },
+	"knight": { "move": "knight", "range": 0, "atk": 20,  "def": -10, "trait": "charge",       "value": 320 },
+	"pawn":   { "move": "orth",   "range": 2, "atk": 0,   "def": 0,   "trait": "phalanx",      "value": 100 },
+	"miner":  { "move": "orth",   "range": 1, "atk": -20, "def": -10, "trait": "worker",       "value": 260 }
+}

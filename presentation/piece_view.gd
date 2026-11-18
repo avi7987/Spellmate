@@ -160,7 +160,14 @@ func set_status(shielded: bool, frozen: bool) -> void:
 		_ice_fx = null
 
 
+var _orbit: Node3D
+
+
 func _process(delta: float) -> void:
+	if _orbit == null and _model != null:
+		_orbit = _model.find_child("Orbit", true, false)
+	if _orbit != null:
+		_orbit.rotate_y(delta * 1.4)
 	# Gentle idle "breathing" so the characters feel alive (not when frozen).
 	_time += delta
 	if _player != null:

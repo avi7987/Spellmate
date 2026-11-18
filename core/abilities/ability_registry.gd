@@ -3,7 +3,8 @@ extends RefCounted
 ## The list of all abilities, one per piece kind.
 
 const SCRIPTS := [
-	preload("res://core/abilities/charge.gd"),
+	preload("res://core/abilities/brace.gd"),
+	preload("res://core/abilities/toil.gd"),
 	preload("res://core/abilities/fire_breath.gd"),
 	preload("res://core/abilities/swap.gd"),
 	preload("res://core/abilities/stone_push.gd"),

@@ -32,8 +32,20 @@ static func energy_per_turn() -> int:
 	return int(data().get("energy", {}).get("per_turn", 1))
 
 
-static func energy_per_capture() -> int:
-	return int(data().get("energy", {}).get("per_capture", 1))
+static func energy_per_miner() -> int:
+	return int(data().get("energy", {}).get("per_miner", 1))
+
+
+static func energy_mine_bonus() -> int:
+	return int(data().get("energy", {}).get("mine_bonus", 1))
+
+
+static func combat(key: String) -> int:
+	return int(data().get("combat", {}).get(key, 0))
+
+
+static func turn_limit() -> int:
+	return int(data().get("turn_limit", 400))
 
 
 static func ability(id: String) -> Dictionary:

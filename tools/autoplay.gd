@@ -10,11 +10,14 @@ var _i := 0
 var _wait := 0
 var _frames := 0
 var _vs_ai := false
+var _ai_vs_ai := false
+var _battles := 0
 
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
-	_vs_ai = args.size() > 0 and args[0] == "ai"
+	_vs_ai = args.size() > 0 and args[0] in ["ai", "aiai"]
+	_ai_vs_ai = args.size() > 0 and args[0] == "aiai"
 	if args.size() > 1:
 		_clicks = Array(args[1].split(","))
 	_main = load("res://scenes/main.tscn").instantiate()
@@ -25,8 +28,25 @@ func _process(_delta: float) -> bool:
 	_frames += 1
 	if _frames == 3:
 		_main.hud.show_menu(false)
-		_main.controller.new_game(_vs_ai, true, 0)
+		_main.controller.new_game(_vs_ai, true, 1)
+		if _ai_vs_ai:
+			_main.controller.action_applied.connect(func(a, ev, st):
+				for e in ev:
+					if e["type"] == "battle":
+						_battles += 1
+						print("battle ply ", st.ply, " chance ", e["chance"], " roll ", e["roll"], " won ", e["won"]))
+			_main.controller.players = [GameController.PlayerType.AI, GameController.PlayerType.AI]
+			_main.controller.on_presentation_done()
 	if _frames < 10:
+		return false
+	if _ai_vs_ai:
+		var st: GameState = _main.controller.state
+		if _main.controller.is_over() and _main.hud._over.visible:
+			print("AIAI OVER ", _main.controller.result, " plies ", st.ply, " battles ", _battles)
+			quit()
+		elif st.ply >= 40 and _main._mode != _main.Mode.BUSY:
+			print("AIAI 40 plies ok, battles ", _battles, " frames ", _frames)
+			quit()
 		return false
 	if _frames > 6000:
 		print("TIMEOUT mode=", _main._mode, " busy=", _main.controller.busy)

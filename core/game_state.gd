@@ -1,56 +1,74 @@
 class_name GameState
 extends RefCounted
-## The complete state of a game. Pure data - no graphics.
-## Everything the rules need lives here, so a state can be cloned for the AI,
-## saved, or sent over a network.
+## The complete state of a battle. Pure data - no graphics.
+## Everything the rules need lives here (including the dice), so a state can
+## be cloned for the AI, saved, or sent over a network.
 
-const START_FEN := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-
-## 64 entries, each a Piece or null.
+## Units on the battlefield: Chess.N entries, each a Piece or null.
 var board: Array = []
+## Terrain of every square (Chess.Terrain).
+var terrain: PackedInt32Array
 var side_to_move: int = Chess.WHITE
-var ep_square: int = -1
-var halfmove_clock: int = 0
-var fullmove_number: int = 1
 ## Half-turns played since the start. Effect timers are measured in plies.
 var ply: int = 0
 var energy: Array = [0, 0]
 var abilities_enabled: bool = true
-## Lava squares: square -> ply at which the lava disappears.
+## Burning squares: square -> ply at which the fire goes out.
 var hazards: Dictionary = {}
-## Shielded pieces: piece id -> ply at which the shield ends.
+## Shielded units: piece id -> ply at which the shield ends.
 var shields: Dictionary = {}
-## Frozen pieces: piece id -> ply at which the freeze ends.
+## Frozen units: piece id -> ply at which the freeze ends.
 var freezes: Dictionary = {}
+## Braced units (extra defense): piece id -> ply at which it ends.
+var braces: Dictionary = {}
 var next_piece_id: int = 1
-## Position keys of every position so far (for threefold repetition).
-## Only filled when track_history is true (the AI's scratch copies skip it).
-var history_keys: Array = []
-var track_history: bool = true
+## The dice. A simple deterministic generator, so a saved game replays exactly.
+var rng_state: int = 12345
+## -1 = battle still going, 0/1 = that side won, 2 = draw.
+var winner: int = -1
 
 
 func _init() -> void:
-	board.resize(64)
+	board.resize(Chess.N)
+	terrain = PackedInt32Array()
+	terrain.resize(Chess.N)
 
 
-static func new_game(with_abilities: bool = true) -> GameState:
-	var s := from_fen(START_FEN)
+## A new battle on the standard map with both armies.
+static func new_game(with_abilities: bool = true, rng_seed: int = -1) -> GameState:
+	var s := GameState.new()
+	s.terrain = UnitData.terrain_grid()
+	var army := UnitData.starting_army()
+	for sq in army:
+		s.add_piece(army[sq], Chess.WHITE, sq)
+	for sq in army:
+		s.add_piece(army[sq], Chess.BLACK, Chess.mirror(sq))
 	s.abilities_enabled = with_abilities
 	s.energy = [Balance.energy_start(), Balance.energy_start()]
-	if with_abilities:
-		s.gain_turn_energy()
-	s.history_keys = [s.position_key()]
+	s.rng_state = rng_seed if rng_seed >= 0 else int(Time.get_unix_time_from_system() * 1000.0) % 2147483647
+	s.gain_turn_energy()
+	return s
+
+
+## An empty plain battlefield (for tests and puzzles).
+static func empty() -> GameState:
+	var s := GameState.new()
+	s.energy = [Balance.energy_start(), Balance.energy_start()]
 	return s
 
 
 # ---------------------------------------------------------------- queries
 
 func piece_at(s: int) -> Piece:
-	return board[s]
+	return board[s] if s >= 0 and s < Chess.N else null
+
+
+func terrain_at(s: int) -> int:
+	return terrain[s]
 
 
 func find_king(color: int) -> int:
-	for s in 64:
+	for s in Chess.N:
 		var p: Piece = board[s]
 		if p != null and p.kind == Chess.Kind.KING and p.color == color:
 			return s
@@ -58,7 +76,7 @@ func find_king(color: int) -> int:
 
 
 func find_piece(id: int) -> int:
-	for s in 64:
+	for s in Chess.N:
 		var p: Piece = board[s]
 		if p != null and p.id == id:
 			return s
@@ -77,12 +95,41 @@ func is_frozen(p: Piece) -> bool:
 	return p != null and freezes.has(p.id) and int(freezes[p.id]) > ply
 
 
+func is_braced(p: Piece) -> bool:
+	return p != null and braces.has(p.id) and int(braces[p.id]) > ply
+
+
+## Can a unit stand on / walk into this square (ignoring other units)?
+func is_walkable(s: int) -> bool:
+	return terrain[s] != Chess.Terrain.WATER and not is_lava(s)
+
+
 func all_pieces() -> Array:
 	var out := []
-	for s in 64:
+	for s in Chess.N:
 		if board[s] != null:
 			out.append(board[s])
 	return out
+
+
+func count(color: int, kind: int) -> int:
+	var n := 0
+	for p in all_pieces():
+		if p.color == color and p.kind == kind:
+			n += 1
+	return n
+
+
+## Energy this side earns at the start of each of its turns (from its miners).
+func income(color: int) -> int:
+	var total := 0
+	for s in Chess.N:
+		var p: Piece = board[s]
+		if p != null and p.color == color and p.kind == Chess.Kind.MINER:
+			total += Balance.energy_per_miner()
+			if terrain[s] == Chess.Terrain.MINE:
+				total += Balance.energy_mine_bonus()
+	return total
 
 
 # ---------------------------------------------------------------- changes
@@ -95,136 +142,43 @@ func add_piece(kind: int, color: int, s: int) -> Piece:
 
 
 func gain_turn_energy() -> void:
-	add_energy(side_to_move, Balance.energy_per_turn())
+	if abilities_enabled:
+		add_energy(side_to_move, income(side_to_move))
 
 
 func add_energy(color: int, amount: int) -> void:
 	energy[color] = clampi(int(energy[color]) + amount, 0, Balance.energy_max())
 
 
+## Rolls the dice: a number from 0 to 99.
+func roll_d100() -> int:
+	rng_state = (rng_state * 1103515245 + 12345) & 0x7fffffff
+	return (rng_state >> 8) % 100
+
+
 ## Removes effects whose timer has ended.
 func purge_expired() -> void:
-	for dict in [hazards, shields, freezes]:
+	for dict in [hazards, shields, freezes, braces]:
 		for key in dict.keys():
 			if int(dict[key]) <= ply:
 				dict.erase(key)
 
 
-func clone(keep_history: bool = true) -> GameState:
+func clone() -> GameState:
 	var c := GameState.new()
-	for s in 64:
+	for s in Chess.N:
 		var p: Piece = board[s]
 		c.board[s] = p.copy() if p != null else null
+	c.terrain = terrain
 	c.side_to_move = side_to_move
-	c.ep_square = ep_square
-	c.halfmove_clock = halfmove_clock
-	c.fullmove_number = fullmove_number
 	c.ply = ply
 	c.energy = energy.duplicate()
 	c.abilities_enabled = abilities_enabled
 	c.hazards = hazards.duplicate()
 	c.shields = shields.duplicate()
 	c.freezes = freezes.duplicate()
+	c.braces = braces.duplicate()
 	c.next_piece_id = next_piece_id
-	c.track_history = keep_history and track_history
-	if c.track_history:
-		c.history_keys = history_keys.duplicate()
+	c.rng_state = rng_state
+	c.winner = winner
 	return c
-
-
-# ---------------------------------------------------------------- FEN
-
-static func from_fen(fen: String) -> GameState:
-	var s := GameState.new()
-	var parts := fen.strip_edges().split(" ", false)
-	var rows := parts[0].split("/")
-	for i in 8:
-		var rank := 7 - i
-		var file := 0
-		for ch in rows[i]:
-			if ch.is_valid_int():
-				file += int(ch)
-			else:
-				var color := Chess.WHITE if ch == ch.to_upper() else Chess.BLACK
-				var p := s.add_piece(Chess.kind_from_char(ch), color, Chess.sq(file, rank))
-				# Kings and rooks count as "moved" unless the castling field says otherwise.
-				p.has_moved = p.kind == Chess.Kind.KING or p.kind == Chess.Kind.ROOK
-				file += 1
-	s.side_to_move = Chess.WHITE if parts.size() < 2 or parts[1] == "w" else Chess.BLACK
-	var castling := parts[2] if parts.size() > 2 else "-"
-	for c in castling:
-		match c:
-			"K": s._unmark_castle(Chess.WHITE, 7)
-			"Q": s._unmark_castle(Chess.WHITE, 0)
-			"k": s._unmark_castle(Chess.BLACK, 7)
-			"q": s._unmark_castle(Chess.BLACK, 0)
-	s.ep_square = Chess.parse_square(parts[3]) if parts.size() > 3 else -1
-	s.halfmove_clock = int(parts[4]) if parts.size() > 4 else 0
-	s.fullmove_number = int(parts[5]) if parts.size() > 5 else 1
-	s.ply = (s.fullmove_number - 1) * 2 + s.side_to_move
-	return s
-
-
-func _unmark_castle(color: int, rook_file: int) -> void:
-	var rank := 0 if color == Chess.WHITE else 7
-	var king: Piece = board[Chess.sq(4, rank)]
-	var rook: Piece = board[Chess.sq(rook_file, rank)]
-	if king != null and king.kind == Chess.Kind.KING and king.color == color:
-		king.has_moved = false
-	if rook != null and rook.kind == Chess.Kind.ROOK and rook.color == color:
-		rook.has_moved = false
-
-
-func can_castle(color: int, rook_file: int) -> bool:
-	var rank := 0 if color == Chess.WHITE else 7
-	var king: Piece = board[Chess.sq(4, rank)]
-	var rook: Piece = board[Chess.sq(rook_file, rank)]
-	return king != null and king.kind == Chess.Kind.KING and king.color == color and not king.has_moved \
-		and rook != null and rook.kind == Chess.Kind.ROOK and rook.color == color and not rook.has_moved
-
-
-func castling_string() -> String:
-	var c := ""
-	if can_castle(Chess.WHITE, 7): c += "K"
-	if can_castle(Chess.WHITE, 0): c += "Q"
-	if can_castle(Chess.BLACK, 7): c += "k"
-	if can_castle(Chess.BLACK, 0): c += "q"
-	return c if c != "" else "-"
-
-
-func board_fen() -> String:
-	var rows := []
-	for i in 8:
-		var rank := 7 - i
-		var row := ""
-		var empty := 0
-		for file in 8:
-			var p: Piece = board[Chess.sq(file, rank)]
-			if p == null:
-				empty += 1
-			else:
-				if empty > 0:
-					row += str(empty)
-					empty = 0
-				row += p.fen_char()
-		if empty > 0:
-			row += str(empty)
-		rows.append(row)
-	return "/".join(rows)
-
-
-func to_fen() -> String:
-	return "%s %s %s %s %d %d" % [board_fen(), "w" if side_to_move == Chess.WHITE else "b",
-		castling_string(), Chess.square_name(ep_square), halfmove_clock, fullmove_number]
-
-
-## Identifies "the same position" for repetition: board, side, castling,
-## en passant, energy and active effects.
-func position_key() -> String:
-	var fx := []
-	for s in hazards: fx.append("L%d:%d" % [s, int(hazards[s]) - ply])
-	for id in shields: fx.append("S%d:%d" % [find_piece(id), int(shields[id]) - ply])
-	for id in freezes: fx.append("F%d:%d" % [find_piece(id), int(freezes[id]) - ply])
-	fx.sort()
-	return "%s %d %s %d %d/%d %s" % [board_fen(), side_to_move, castling_string(), ep_square,
-		energy[0], energy[1], ",".join(fx)]

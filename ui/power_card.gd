@@ -225,6 +225,24 @@ func _draw_icon(icon: String, p: Vector2, c: Color) -> void:
 				p + Vector2(0, 36), p + Vector2(-14, 28), p + Vector2(-16, 6)])
 			draw_colored_polygon(inner, Color(1.0, 0.8, 0.25))
 			draw_polyline(outer + PackedVector2Array([outer[0]]), ink, 2.5, true)
+		"wall":  # three overlapping shields
+			for i in 3:
+				var c2 := p + Vector2(-34 + i * 34, 6 - (8 if i == 1 else 0))
+				var sh := PackedVector2Array([c2 + Vector2(-20, -26), c2 + Vector2(20, -26), c2 + Vector2(20, 4),
+					c2 + Vector2(0, 30), c2 + Vector2(-20, 4)])
+				draw_colored_polygon(sh, Color(0.55, 0.38, 0.15) if i != 1 else c)
+				draw_polyline(sh + PackedVector2Array([sh[0]]), ink, 2.5, true)
+				draw_line(c2 + Vector2(0, -22), c2 + Vector2(0, 24), light, 3.0)
+		"crystal":  # a glowing crystal cluster with a pickaxe
+			for k in [[-26.0, 30.0, 0.9], [0.0, 46.0, 1.0], [24.0, 34.0, 0.85]]:
+				var base := p + Vector2(k[0], 36)
+				var h: float = k[1] * (1.0 + 0.05 * sin(_time * 3.0 + k[0]))
+				var cr := PackedVector2Array([base + Vector2(-12, 0), base + Vector2(-9, -h * 0.8), base + Vector2(0, -h - 14),
+					base + Vector2(9, -h * 0.8), base + Vector2(12, 0)])
+				draw_colored_polygon(cr, Color(c.r, c.g, c.b, k[2]))
+				draw_polyline(cr + PackedVector2Array([cr[0]]), light, 2.0, true)
+			draw_line(p + Vector2(-56, -40), p + Vector2(-20, 4), Color(0.5, 0.33, 0.18), 6.0, true)
+			draw_arc(p + Vector2(-52, -44), 18.0, -0.4, 2.0, 12, Color(0.75, 0.77, 0.82), 5.0, true)
 		"spear":  # a spear thrusting forward with chevrons
 			draw_line(p + Vector2(-50, 40), p + Vector2(30, -40), Color(0.5, 0.33, 0.18), 7.0, true)
 			var tip := PackedVector2Array([p + Vector2(48, -58), p + Vector2(22, -46), p + Vector2(36, -32)])

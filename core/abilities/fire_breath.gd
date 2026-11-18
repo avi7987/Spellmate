@@ -1,7 +1,6 @@
 extends Ability
-## Knight (the Little Dragon) - "Fire Breath": an empty adjacent square becomes
-## lava for 2 rounds. No piece may land on lava or slide through it
-## (knights/dragons can still jump over it).
+## Knight - "Burning Arrow": an empty adjacent square catches fire for 2 rounds.
+## No unit may enter or pass through fire (knights can still jump over it).
 
 
 func _init() -> void:
@@ -13,7 +12,7 @@ func _init() -> void:
 func targets(state: GameState, from: int) -> Array:
 	var out := []
 	for s in Ability.neighbors(from, Chess.KING_OFFSETS):
-		if state.piece_at(s) == null and not state.is_lava(s):
+		if state.piece_at(s) == null and state.is_walkable(s):
 			out.append(s)
 	return out
 

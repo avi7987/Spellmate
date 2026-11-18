@@ -46,8 +46,10 @@ var _items: Array = []
 
 
 func _ready() -> void:
+	# Positions were drawn for an 8x8 board; spread them around the bigger field.
+	var spread := Vector2(Chess.W / 8.0 * 1.02, Chess.H / 8.0 * 1.02)
 	for p in PROPS:
-		_place(p[0], Vector3(p[1], -0.3, p[2]), p[3], p[4])
+		_place(p[0], Vector3(p[1] * spread.x, -0.3, p[2] * spread.y), p[3] * 1.15, p[4])
 	_add_clouds()
 
 
