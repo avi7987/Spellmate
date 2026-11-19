@@ -1,27 +1,39 @@
 class_name Chess
 extends RefCounted
 ## Shared constants and small helpers for the rules engine.
-## The battlefield is W x H squares. square = rank * W + file. Rank 0 is the
-## Sun's (White's) back row, rank H-1 the Void's (Black's).
+## The world is W x H squares. square = rank * W + file. Rank 0 is the
+## Sun's (White's) edge, rank H-1 the Void's (Black's).
+## (The class keeps the name "Chess" - the game was born from chess.)
 
-const W := 12
-const H := 12
+const W := 30
+const H := 30
 const N := W * H
 
-enum Kind { NONE = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6, MINER = 7 }
-enum Terrain { PLAIN, FOREST, HILL, WATER, BRIDGE, MINE, CASTLE }
+enum Kind {
+	NONE = 0, PAWN = 1, KNIGHT = 2, BISHOP = 3, ROOK = 4, QUEEN = 5, KING = 6, MINER = 7,
+	ARCHER = 8, SHIELD = 9, HEALER = 10, ICE_WITCH = 11, FIRE_MAGE = 12, ASSASSIN = 13,
+	GIANT = 14, BALLISTA = 15, DRAGON = 16,
+}
+enum Terrain { PLAIN, FOREST, HILL, WATER, BRIDGE, MINE, CASTLE, WALL }
 
 const WHITE := 0   ## the Sun kingdom
 const BLACK := 1   ## the Void kingdom
 
-const FILES := "abcdefghijkl"
+const FILES := "abcdefghijklmnopqrstuvwxyzABCD"
+## Kind -> id used in data files. (pawn = soldier, knight = rider, bishop/rook are unused now.)
 const KIND_NAMES := {
 	Kind.PAWN: "pawn", Kind.KNIGHT: "knight", Kind.BISHOP: "bishop", Kind.ROOK: "rook",
-	Kind.QUEEN: "queen", Kind.KING: "king", Kind.MINER: "miner",
+	Kind.QUEEN: "queen", Kind.KING: "king", Kind.MINER: "miner", Kind.ARCHER: "archer",
+	Kind.SHIELD: "shield", Kind.HEALER: "healer", Kind.ICE_WITCH: "ice_witch",
+	Kind.FIRE_MAGE: "fire_mage", Kind.ASSASSIN: "assassin", Kind.GIANT: "giant",
+	Kind.BALLISTA: "ballista", Kind.DRAGON: "dragon",
 }
+## Map characters. Palace walls, gates and towers: "#" wall, "G" gate, "T" tower
+## (gates and towers are also structures with health - see GameState.structures).
 const TERRAIN_CHARS := {
 	".": Terrain.PLAIN, "f": Terrain.FOREST, "h": Terrain.HILL, "~": Terrain.WATER,
-	"=": Terrain.BRIDGE, "m": Terrain.MINE, "c": Terrain.CASTLE,
+	"=": Terrain.BRIDGE, "m": Terrain.MINE, "p": Terrain.CASTLE, "#": Terrain.WALL,
+	"G": Terrain.CASTLE, "T": Terrain.WALL,
 }
 
 const KNIGHT_OFFSETS := [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]]

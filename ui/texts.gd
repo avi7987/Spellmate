@@ -11,12 +11,19 @@ const TEAM := { Chess.WHITE: "ממלכת השמש", Chess.BLACK: "ממלכת ה�
 ## Both kingdoms field the same characters, in their own colours.
 const CHARACTER := {
 	Chess.Kind.KING: "המלך",
-	Chess.Kind.QUEEN: "המכשפה",
-	Chess.Kind.ROOK: "הענק",
-	Chess.Kind.BISHOP: "הנזיר",
-	Chess.Kind.KNIGHT: "הקשת",
-	Chess.Kind.PAWN: "הלגיונר",
+	Chess.Kind.QUEEN: "המכשפה הגדולה",
 	Chess.Kind.MINER: "הכורה",
+	Chess.Kind.PAWN: "החייל",
+	Chess.Kind.ARCHER: "הקשת",
+	Chess.Kind.SHIELD: "אביר המגן",
+	Chess.Kind.KNIGHT: "הפרש",
+	Chess.Kind.HEALER: "המרפאה",
+	Chess.Kind.ICE_WITCH: "מכשפת הקרח",
+	Chess.Kind.FIRE_MAGE: "קוסם האש",
+	Chess.Kind.ASSASSIN: "המתנקש",
+	Chess.Kind.GIANT: "הענק",
+	Chess.Kind.BALLISTA: "הבליסטרה",
+	Chess.Kind.DRAGON: "הדרקון",
 }
 
 
@@ -24,53 +31,26 @@ static func character(kind: int, color: int) -> String:
 	return CHARACTER[kind]
 
 
-const ROLE := {
-	Chess.Kind.KING: "מלך",
-	Chess.Kind.QUEEN: "מלכה",
-	Chess.Kind.ROOK: "צריח",
-	Chess.Kind.BISHOP: "רץ",
-	Chess.Kind.KNIGHT: "פרש",
-	Chess.Kind.PAWN: "חייל",
-	Chess.Kind.MINER: "כורה",
-}
 
-## How each unit type moves (shown on the character panel).
-const MOVES := {
-	"all": "זז לכל כיוון עד %d משבצות",
-	"orth": "זז ישר (לא באלכסון) עד %d משבצות",
-	"diag": "זז באלכסון עד %d משבצות",
-	"knight": "קופץ בצורת L מעל הכול",
-}
 
-## Battle traits: [name, description]
+## Special traits: [name, description]
 const TRAIT := {
-	"royal_armor": ["שריון מלכותי", "+15% הגנה בקרב. אם הוא נופל – המלחמה אבודה."],
-	"arcane_strike": ["מכה קסומה", "+15% התקפה בקרב."],
-	"stone_skin": ["עור אבן", "+20% הגנה בקרב."],
-	"phase": ["חמקמק", "+5% התקפה והגנה. אם הוא מפסיד בהתקפה – הוא לא מת אלא חומק חזרה."],
-	"charge": ["הסתערות", "+20% התקפה, אבל -10% בהגנה."],
-	"phalanx": ["חומת מגנים", "+10% הגנה לכל חייל צמוד (עד 20%)."],
-	"worker": ["עובד קשה", "מייצר אנרגיה בכל תור (+1, ועוד +1 על מכרה). חלש בקרב."],
+	"royal": ["המלך", "יושב בארמון ולא יוצא ממנו. אם הוא נופל - המלחמה אבודה."],
+	"sorceress": ["קוסמת", "תוקפת מרחוק (3 משבצות)."],
+	"worker": ["עובד קשה", "מייצר אנרגיה בכל תור (+1, ו-+2 נוספים על מכרה קריסטל)."],
+	"phalanx": ["חומת מגנים", "+1 שריון לכל חייל צמוד."],
+	"ranged": ["יורה מרחוק", "תוקף מ-3 משבצות. יחידות קרובות לא יכולות להחזיר לו."],
+	"bulwark": ["מגן כבד", "הרבה חיים ושריון חזק."],
+	"charge": ["הסתערות", "+3 נזק אם עבר 3 משבצות או יותר לפני ההתקפה."],
+	"mender": ["מרפאה", "מרפאה יחידות ידידותיות צמודות."],
+	"chill": ["מגע קר", "מי שהיא פוגעת בו מואט בתור הבא (2 צעדים פחות)."],
+	"blast": ["פיצוץ", "פוגע גם בכל האויבים שצמודים למטרה (חצי נזק)."],
+	"shadow": ["צל", "עובר ביער בלי להאט. +50% נזק נגד יורים, קוסמים ותומכים."],
+	"siege": ["הורס חומות", "נזק כפול לשערים ולמגדלים."],
+	"artillery": ["ארטילריה", "טווח 5, נזק כפול לשערים ולמגדלים. לא יורה בתור שבו זז."],
+	"flying": ["עף", "עובר מעל נהרות וחומות."],
 }
 
-## Lines that explain a win chance in the battle panel.
-const ODDS_LINE := {
-	"base": "יתרון התוקף",
-	"phalanx": "חומת מגנים",
-	"hill": "תוקף מגבעה",
-	"forest": "מגן ביער",
-	"castle": "מגן בטירה שלו",
-	"brace": "מגן מורם",
-	"frozen": "המגן קפוא",
-}
-
-
-static func odds_line(key: String) -> String:
-	if ODDS_LINE.has(key):
-		return ODDS_LINE[key]
-	if key.begins_with("atk_") or key.begins_with("def_"):
-		return TRAIT.get(key.substr(4), [key])[0]
-	return key
 
 
 const ABILITY_NAME := {
@@ -81,16 +61,16 @@ const ABILITY_NAME := {
 	"fire_breath": "סופת אש",
 	"brace": "קיר מגנים",
 	"toil": "משמרת כפולה",
+	"heal": "אור מרפא",
 }
 
 const ABILITY_DESC := {
 	"royal_decree": "כל היחידות הידידותיות סביב המלך מקבלות מגן: אי אפשר לתקוף אותן עד התור הבא שלך.",
-	"frost": "יחידת אויב בטווח המלכה וכל האויבים שסביבה קופאים לתור אחד (לא מלכים).",
-	"stone_push": "הענק הודף יחידת אויב צמודה עד 2 משבצות אחורה, והיא המומה לתור אחד.",
-	"swap": "מחליף מקום עם יחידה ידידותית על משבצת באותו צבע, והיא מגיעה עם מגן.",
-	"fire_breath": "מצית משבצת ריקה צמודה ואת המשבצות סביבה ל-2 סבבים. אי אפשר לעבור דרך האש.",
-	"brace": "החייל וכל החיילים הצמודים אליו מרימים מגנים: +25% הגנה עד התור הבא שלך.",
-	"toil": "במקום לזוז, הכורה עובד קשה ומוסיף 3 אנרגיה מיד.",
+	"frost": "יחידת אויב בטווח וכל האויבים שסביבה נפגעים מקרח וקופאים לתור אחד (לא מלכים).",
+	"fire_breath": "הדרקון נושף אש על משבצת צמודה ועל המשבצות סביבה: נזק מיד, ואש שבוערת 2 סבבים.",
+	"brace": "החייל וכל החיילים הצמודים אליו מרימים מגנים: +3 שריון עד התור הבא שלך.",
+	"toil": "במקום לפעול, הכורה עובד קשה ומוסיף 3 אנרגיה מיד.",
+	"heal": "מחזירה 6 חיים ליחידה ידידותית צמודה (או לעצמה).",
 }
 
 const TURN_OF := "תור %s"
@@ -128,6 +108,25 @@ const PHASED := "חמק!"
 const KING_FELL := "המלך נפל!"
 const ATTACK_HINT := "%d%% לנצח"
 const UNITS_LEFT := "יחידות: %d"
+
+const END_TURN := "סיים תור"
+const RECRUIT := "גיוס"
+const HP := "חיים"
+const ATK := "התקפה"
+const DEF := "שריון"
+const MOVE := "צעדים"
+const RANGE := "טווח"
+const PREVIEW := "נזק ~%d"
+const PREVIEW_COUNTER := "מכה חוזרת ~%d"
+const PREVIEW_KILL := "הורג!"
+const PREVIEW_DIES := "תמות!"
+const DONE := "סיים את התור שלו"
+const BATTLE_SCENES := "סצנות קרב"
+const SCENE_MODES := ["תמיד", "רק קרבות חשובים", "אף פעם"]
+const GATE := "שער הארמון"
+const TOWER := "מגדל שמירה"
+const NO_SPAWN := "השער חסום"
+const TURN_N := "תור %d"
 
 const RESULT := {
 	"king": "%s ניצחה! מלך היריב נפל",

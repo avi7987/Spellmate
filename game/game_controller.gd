@@ -53,6 +53,8 @@ func submit_action(action: GameAction) -> bool:
 	if is_over() or not Rules.is_legal(state, action):
 		return false
 	_undo_stack.append(state.clone())
+	if _undo_stack.size() > 150:
+		_undo_stack.pop_front()
 	var events := Rules.apply_action(state, action)
 	result = Rules.game_result(state)
 	action_applied.emit(action, events, state)
@@ -87,7 +89,7 @@ func _maybe_ai_turn() -> void:
 		return
 	ai_thinking.emit(true)
 	# Wait a moment so the screen can update before the (blocking) search.
-	await get_tree().create_timer(0.35).timeout
+	await get_tree().create_timer(0.12).timeout
 	if is_over() or players[state.side_to_move] != PlayerType.AI:
 		ai_thinking.emit(false)
 		return

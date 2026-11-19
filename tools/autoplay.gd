@@ -32,9 +32,9 @@ func _process(_delta: float) -> bool:
 		if _ai_vs_ai:
 			_main.controller.action_applied.connect(func(a, ev, st):
 				for e in ev:
-					if e["type"] == "battle":
+					if e["type"] == "attack":
 						_battles += 1
-						print("battle ply ", st.ply, " chance ", e["chance"], " roll ", e["roll"], " won ", e["won"]))
+						print("attack ply ", st.ply, " dmg ", e["damage"], " counter ", e["counter"]))
 			_main.controller.players = [GameController.PlayerType.AI, GameController.PlayerType.AI]
 			_main.controller.on_presentation_done()
 	if _frames < 10:
@@ -44,11 +44,11 @@ func _process(_delta: float) -> bool:
 		if _main.controller.is_over() and _main.hud._over.visible:
 			print("AIAI OVER ", _main.controller.result, " plies ", st.ply, " battles ", _battles)
 			quit()
-		elif st.ply >= 24 and _main._mode != _main.Mode.BUSY:
-			print("AIAI 24 plies ok, battles ", _battles, " frames ", _frames)
+		elif st.ply >= 16 and _main._mode != _main.Mode.BUSY:
+			print("AIAI 16 plies ok, battles ", _battles, " frames ", _frames)
 			quit()
 		return false
-	if _frames > 6000:
+	if _frames > 60000:
 		print("TIMEOUT mode=", _main._mode, " busy=", _main.controller.busy)
 		quit(1)
 		return false

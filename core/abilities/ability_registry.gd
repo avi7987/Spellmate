@@ -6,10 +6,9 @@ const SCRIPTS := [
 	preload("res://core/abilities/brace.gd"),
 	preload("res://core/abilities/toil.gd"),
 	preload("res://core/abilities/fire_breath.gd"),
-	preload("res://core/abilities/swap.gd"),
-	preload("res://core/abilities/stone_push.gd"),
 	preload("res://core/abilities/frost.gd"),
 	preload("res://core/abilities/royal_decree.gd"),
+	preload("res://core/abilities/heal.gd"),
 ]
 
 static var _by_kind: Dictionary = {}

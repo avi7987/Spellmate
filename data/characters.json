@@ -1,23 +1,23 @@
 {
-	"_comment": "Which 3D model plays each piece. Both kingdoms use the same characters; the Void ('shadow') gets the recoloured *_shadow textures. 'show' = built-in props to keep (others are hidden). 'attach' = extra props on a bone.",
+	"_comment": "Which 3D model plays each unit. Both kingdoms use the same characters; the Void ('shadow') gets the recoloured *_shadow textures. 'show' = built-in props to keep (others are hidden). Units without 'model' are built from simple shapes until real models exist.",
 	"light": {
 		"king": {
 			"model": "res://assets/characters/kaykit/Knight.glb",
 			"texture": "knight_texture",
-			"king_texture": true,
 			"show": [
 				"Knight_Cape",
 				"2H_Sword"
 			],
-			"crown": true,
-			"scale": 0.58,
+			"scale": 0.6,
 			"idle": "2H_Melee_Idle",
 			"move": "Walking_A",
 			"attack": "2H_Melee_Attack_Chop",
 			"cast": "Cheer",
 			"hit": "Hit_A",
 			"death": "Death_A",
-			"victory": "Cheer"
+			"victory": "Cheer",
+			"king_texture": true,
+			"crown": true
 		},
 		"queen": {
 			"model": "res://assets/characters/kaykit/Mage.glb",
@@ -27,7 +27,7 @@
 				"Mage_Cape",
 				"2H_Staff"
 			],
-			"scale": 0.55,
+			"scale": 0.56,
 			"idle": "Idle",
 			"move": "Walking_A",
 			"attack": "Spellcast_Shoot",
@@ -36,53 +36,19 @@
 			"death": "Death_A",
 			"victory": "Cheer"
 		},
-		"rook": {
+		"miner": {
 			"model": "res://assets/characters/kaykit/Barbarian.glb",
 			"texture": "barbarian_texture",
 			"show": [
-				"Barbarian_Hat",
-				"Barbarian_Cape",
-				"2H_Axe"
+				"1H_Axe"
 			],
-			"scale": 0.6,
-			"idle": "2H_Melee_Idle",
-			"move": "Walking_A",
-			"attack": "2H_Melee_Attack_Spin",
-			"cast": "Unarmed_Melee_Attack_Punch_A",
-			"hit": "Hit_B",
-			"death": "Death_B",
-			"victory": "Cheer"
-		},
-		"bishop": {
-			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
-			"texture": "rogue_texture",
-			"show": [
-				"Rogue_Cape",
-				"Throwable"
-			],
-			"scale": 0.55,
+			"scale": 0.44,
 			"idle": "Idle",
 			"move": "Walking_A",
-			"attack": "Throw",
-			"cast": "Spellcast_Raise",
+			"attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact",
 			"hit": "Hit_A",
 			"death": "Death_A",
-			"victory": "Cheer"
-		},
-		"knight": {
-			"model": "res://assets/characters/kaykit/Rogue.glb",
-			"texture": "rogue_texture",
-			"show": [
-				"2H_Crossbow",
-				"Rogue_Cape"
-			],
-			"scale": 0.55,
-			"idle": "2H_Ranged_Aiming",
-			"move": "Running_A",
-			"attack": "2H_Ranged_Shoot",
-			"cast": "Spellcast_Shoot",
-			"hit": "Hit_B",
-			"death": "Death_B",
 			"victory": "Cheer"
 		},
 		"pawn": {
@@ -102,40 +68,164 @@
 			"death": "Death_A",
 			"victory": "Cheer"
 		},
-		"miner": {
-			"model": "res://assets/characters/kaykit/Barbarian.glb",
-			"texture": "barbarian_texture",
+		"archer": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
 			"show": [
-				"1H_Axe"
+				"2H_Crossbow"
 			],
-			"scale": 0.45,
-			"idle": "Idle",
+			"scale": 0.5,
+			"idle": "2H_Ranged_Aiming",
 			"move": "Walking_A",
-			"attack": "1H_Melee_Attack_Chop",
-			"cast": "Interact",
+			"attack": "2H_Ranged_Shoot",
+			"cast": "Cheer",
 			"hit": "Hit_A",
 			"death": "Death_A",
 			"victory": "Cheer"
+		},
+		"shield": {
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"Spike_Shield",
+				"1H_Sword",
+				"Knight_Cape"
+			],
+			"scale": 0.55,
+			"idle": "Blocking",
+			"move": "Walking_B",
+			"attack": "Block_Attack",
+			"cast": "Block",
+			"hit": "Block_Hit",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"knight": {
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"2H_Sword",
+				"Knight_Cape"
+			],
+			"scale": 0.54,
+			"idle": "2H_Melee_Idle",
+			"move": "Running_A",
+			"attack": "2H_Melee_Attack_Spin",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"healer": {
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Spellbook_open",
+				"1H_Wand"
+			],
+			"scale": 0.5,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Long",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"ice_witch": {
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Mage_Hat",
+				"1H_Wand",
+				"Spellbook"
+			],
+			"scale": 0.5,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"fire_mage": {
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape",
+				"Throwable"
+			],
+			"scale": 0.52,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Throw",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"assassin": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Knife",
+				"Knife_Offhand"
+			],
+			"scale": 0.48,
+			"idle": "Idle",
+			"move": "Running_A",
+			"attack": "Dualwield_Melee_Attack_Stab",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"giant": {
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"Barbarian_Hat",
+				"Barbarian_Cape",
+				"2H_Axe"
+			],
+			"scale": 0.82,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_B",
+			"attack": "2H_Melee_Attack_Chop",
+			"cast": "Cheer",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
+		},
+		"ballista": {
+			"_note": "no model yet: built from shapes in PieceModelFactory._ballista"
+		},
+		"dragon": {
+			"_note": "no model yet: built from shapes in PieceModelFactory._dragon",
+			"scale": 1.6
 		}
 	},
 	"shadow": {
 		"king": {
 			"model": "res://assets/characters/kaykit/Knight.glb",
 			"texture": "knight_texture",
-			"king_texture": true,
 			"show": [
 				"Knight_Cape",
 				"2H_Sword"
 			],
-			"crown": true,
-			"scale": 0.58,
+			"scale": 0.6,
 			"idle": "2H_Melee_Idle",
 			"move": "Walking_A",
 			"attack": "2H_Melee_Attack_Chop",
 			"cast": "Cheer",
 			"hit": "Hit_A",
 			"death": "Death_A",
-			"victory": "Cheer"
+			"victory": "Cheer",
+			"king_texture": true,
+			"crown": true
 		},
 		"queen": {
 			"model": "res://assets/characters/kaykit/Mage.glb",
@@ -145,7 +235,7 @@
 				"Mage_Cape",
 				"2H_Staff"
 			],
-			"scale": 0.55,
+			"scale": 0.56,
 			"idle": "Idle",
 			"move": "Walking_A",
 			"attack": "Spellcast_Shoot",
@@ -154,53 +244,19 @@
 			"death": "Death_A",
 			"victory": "Cheer"
 		},
-		"rook": {
+		"miner": {
 			"model": "res://assets/characters/kaykit/Barbarian.glb",
 			"texture": "barbarian_texture",
 			"show": [
-				"Barbarian_Hat",
-				"Barbarian_Cape",
-				"2H_Axe"
+				"1H_Axe"
 			],
-			"scale": 0.6,
-			"idle": "2H_Melee_Idle",
-			"move": "Walking_A",
-			"attack": "2H_Melee_Attack_Spin",
-			"cast": "Unarmed_Melee_Attack_Punch_A",
-			"hit": "Hit_B",
-			"death": "Death_B",
-			"victory": "Cheer"
-		},
-		"bishop": {
-			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
-			"texture": "rogue_texture",
-			"show": [
-				"Rogue_Cape",
-				"Throwable"
-			],
-			"scale": 0.55,
+			"scale": 0.44,
 			"idle": "Idle",
 			"move": "Walking_A",
-			"attack": "Throw",
-			"cast": "Spellcast_Raise",
+			"attack": "1H_Melee_Attack_Chop",
+			"cast": "Interact",
 			"hit": "Hit_A",
 			"death": "Death_A",
-			"victory": "Cheer"
-		},
-		"knight": {
-			"model": "res://assets/characters/kaykit/Rogue.glb",
-			"texture": "rogue_texture",
-			"show": [
-				"2H_Crossbow",
-				"Rogue_Cape"
-			],
-			"scale": 0.55,
-			"idle": "2H_Ranged_Aiming",
-			"move": "Running_A",
-			"attack": "2H_Ranged_Shoot",
-			"cast": "Spellcast_Shoot",
-			"hit": "Hit_B",
-			"death": "Death_B",
 			"victory": "Cheer"
 		},
 		"pawn": {
@@ -220,20 +276,144 @@
 			"death": "Death_A",
 			"victory": "Cheer"
 		},
-		"miner": {
-			"model": "res://assets/characters/kaykit/Barbarian.glb",
-			"texture": "barbarian_texture",
+		"archer": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
 			"show": [
-				"1H_Axe"
+				"2H_Crossbow"
 			],
-			"scale": 0.45,
-			"idle": "Idle",
+			"scale": 0.5,
+			"idle": "2H_Ranged_Aiming",
 			"move": "Walking_A",
-			"attack": "1H_Melee_Attack_Chop",
-			"cast": "Interact",
+			"attack": "2H_Ranged_Shoot",
+			"cast": "Cheer",
 			"hit": "Hit_A",
 			"death": "Death_A",
 			"victory": "Cheer"
+		},
+		"shield": {
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"Spike_Shield",
+				"1H_Sword",
+				"Knight_Cape"
+			],
+			"scale": 0.55,
+			"idle": "Blocking",
+			"move": "Walking_B",
+			"attack": "Block_Attack",
+			"cast": "Block",
+			"hit": "Block_Hit",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"knight": {
+			"model": "res://assets/characters/kaykit/Knight.glb",
+			"texture": "knight_texture",
+			"show": [
+				"Knight_Helmet",
+				"2H_Sword",
+				"Knight_Cape"
+			],
+			"scale": 0.54,
+			"idle": "2H_Melee_Idle",
+			"move": "Running_A",
+			"attack": "2H_Melee_Attack_Spin",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"healer": {
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Spellbook_open",
+				"1H_Wand"
+			],
+			"scale": 0.5,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Long",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"ice_witch": {
+			"model": "res://assets/characters/kaykit/Mage.glb",
+			"texture": "mage_texture",
+			"show": [
+				"Mage_Hat",
+				"1H_Wand",
+				"Spellbook"
+			],
+			"scale": 0.5,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"fire_mage": {
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape",
+				"Throwable"
+			],
+			"scale": 0.52,
+			"idle": "Idle",
+			"move": "Walking_A",
+			"attack": "Throw",
+			"cast": "Spellcast_Raise",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"assassin": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Knife",
+				"Knife_Offhand"
+			],
+			"scale": 0.48,
+			"idle": "Idle",
+			"move": "Running_A",
+			"attack": "Dualwield_Melee_Attack_Stab",
+			"cast": "Cheer",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"giant": {
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [
+				"Barbarian_Hat",
+				"Barbarian_Cape",
+				"2H_Axe"
+			],
+			"scale": 0.82,
+			"idle": "2H_Melee_Idle",
+			"move": "Walking_B",
+			"attack": "2H_Melee_Attack_Chop",
+			"cast": "Cheer",
+			"hit": "Hit_B",
+			"death": "Death_B",
+			"victory": "Cheer"
+		},
+		"ballista": {
+			"_note": "no model yet: built from shapes in PieceModelFactory._ballista"
+		},
+		"dragon": {
+			"_note": "no model yet: built from shapes in PieceModelFactory._dragon",
+			"scale": 1.6
 		}
 	}
 }

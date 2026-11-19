@@ -1,10 +1,17 @@
 {
-	"_comment": "Unit types. move: all/orth/diag/knight, range = max squares (knights jump). atk/def = percent added in battles. value = how much the AI cares about the unit.",
-	"king":   { "move": "all",    "range": 1, "atk": 0,   "def": 15,  "trait": "royal_armor",  "value": 0 },
-	"queen":  { "move": "all",    "range": 4, "atk": 15,  "def": 0,   "trait": "arcane_strike", "value": 900 },
-	"rook":   { "move": "orth",   "range": 5, "atk": 0,   "def": 20,  "trait": "stone_skin",   "value": 500 },
-	"bishop": { "move": "diag",   "range": 5, "atk": 5,   "def": 5,   "trait": "phase",        "value": 330 },
-	"knight": { "move": "knight", "range": 0, "atk": 20,  "def": -10, "trait": "charge",       "value": 320 },
-	"pawn":   { "move": "orth",   "range": 2, "atk": 0,   "def": 0,   "trait": "phalanx",      "value": 100 },
-	"miner":  { "move": "orth",   "range": 1, "atk": -20, "def": -10, "trait": "worker",       "value": 260 }
+	"_comment": "Unit types. hp/atk/def = health, attack, armour (armour removes damage). move = steps per turn (forest costs 2). range = attack distance (1 = next to it). cost = energy to recruit at the palace gate (0 = cannot be recruited). vision = how far it sees through the fog. flying units cross water and walls. value = how much the AI cares.",
+	"king":      { "hp": 30, "atk": 6, "def": 3, "move": 1, "range": 1, "cost": 0, "vision": 4, "trait": "royal",    "value": 5000 },
+	"queen":     { "hp": 18, "atk": 7, "def": 1, "move": 3, "range": 3, "cost": 8, "vision": 5, "trait": "sorceress","value": 700 },
+	"miner":     { "hp": 8,  "atk": 2, "def": 0, "move": 3, "range": 1, "cost": 3, "vision": 3, "trait": "worker",   "value": 260 },
+	"pawn":      { "hp": 12, "atk": 4, "def": 1, "move": 3, "range": 1, "cost": 2, "vision": 4, "trait": "phalanx",  "value": 120 },
+	"archer":    { "hp": 9,  "atk": 4, "def": 0, "move": 3, "range": 3, "cost": 3, "vision": 5, "trait": "ranged",   "value": 180 },
+	"shield":    { "hp": 22, "atk": 3, "def": 3, "move": 2, "range": 1, "cost": 4, "vision": 3, "trait": "bulwark",  "value": 240 },
+	"knight":    { "hp": 14, "atk": 6, "def": 1, "move": 5, "range": 1, "cost": 4, "vision": 5, "trait": "charge",   "value": 260 },
+	"healer":    { "hp": 10, "atk": 2, "def": 0, "move": 3, "range": 1, "cost": 4, "vision": 4, "trait": "mender",   "value": 240 },
+	"ice_witch": { "hp": 10, "atk": 3, "def": 0, "move": 3, "range": 3, "cost": 5, "vision": 4, "trait": "chill",    "value": 300 },
+	"fire_mage": { "hp": 10, "atk": 5, "def": 0, "move": 3, "range": 3, "cost": 5, "vision": 4, "trait": "blast",    "value": 320 },
+	"assassin":  { "hp": 9,  "atk": 7, "def": 0, "move": 4, "range": 1, "cost": 5, "vision": 5, "trait": "shadow",   "value": 300 },
+	"giant":     { "hp": 30, "atk": 6, "def": 2, "move": 2, "range": 1, "cost": 6, "vision": 3, "trait": "siege",    "value": 420 },
+	"ballista":  { "hp": 12, "atk": 8, "def": 0, "move": 1, "range": 5, "cost": 6, "vision": 4, "trait": "artillery","value": 400 },
+	"dragon":    { "hp": 26, "atk": 8, "def": 2, "move": 5, "range": 1, "cost": 9, "vision": 6, "trait": "flying",   "value": 800 }
 }

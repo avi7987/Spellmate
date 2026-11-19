@@ -11,6 +11,8 @@ signal power_pressed
 signal cancel_pressed
 signal battle_skip_pressed
 signal menu_toggled(visible: bool)
+signal end_turn_pressed
+signal recruit_pressed(kind: int)
 
 const VIGNETTE_SHADER := """
 shader_type canvas_item;
@@ -54,6 +56,12 @@ var _card_moves: Label
 var _turn_color := -1
 var _fade: ColorRect
 var _skip_btn: Button
+var _end_btn: Button
+var _recruit_bar: Control
+var _recruit_buttons: Dictionary = {}   # kind -> Button
+## Battle scene setting: 0 = always, 1 = important battles only, 2 = never.
+var scene_mode := 1
+var _scene_buttons: Array = []
 
 var _vs_ai := true
 var _powers := true
@@ -169,15 +177,22 @@ func _build_team_cards() -> void:
 		v.add_child(UiKit.title(Texts.TEAM[color], 26, Style.team(color)["ui"]))
 		var energy := UiKit.label("", 16, UiKit.TEXT_SOFT)
 		v.add_child(energy)
-		var pips := HBoxContainer.new()
-		pips.alignment = BoxContainer.ALIGNMENT_CENTER
-		pips.add_theme_constant_override("separation", 1)
-		pips.layout_direction = Control.LAYOUT_DIRECTION_RTL
+		var pips := ProgressBar.new()
+		pips.show_percentage = false
+		pips.custom_minimum_size = Vector2(0, 18)
+		pips.max_value = Balance.energy_max()
+		var bg := StyleBoxFlat.new()
+		bg.bg_color = Color(0.1, 0.1, 0.13)
+		bg.set_corner_radius_all(4)
+		bg.border_color = Color(0.3, 0.27, 0.24)
+		bg.set_border_width_all(1)
+		var fill := StyleBoxFlat.new()
+		fill.bg_color = Color(0.35, 0.75, 1.0)
+		fill.set_corner_radius_all(4)
+		pips.add_theme_stylebox_override("background", bg)
+		pips.add_theme_stylebox_override("fill", fill)
+		pips.fill_mode = ProgressBar.FILL_END_TO_BEGIN
 		v.add_child(pips)
-		for i in Balance.energy_max():
-			var pip := Panel.new()
-			pip.custom_minimum_size = Vector2(11, 22)
-			pips.add_child(pip)
 		var captured := UiKit.label("", 15, UiKit.TEXT_SOFT)
 		v.add_child(captured)
 		_team_cards[color] = { "panel": p, "energy": energy, "pips": pips, "captured": captured }
@@ -235,6 +250,35 @@ func _build_buttons() -> void:
 	menu_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	menu_btn.pressed.connect(func(): show_menu(true))
 	row.add_child(menu_btn)
+	_end_btn = UiKit.button(Texts.END_TURN, UiKit.BUTTON_RED, 26)
+	_end_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_end_btn.position = Vector2(-256, -82)
+	_end_btn.custom_minimum_size = Vector2(242, 66)
+	_end_btn.pressed.connect(func(): end_turn_pressed.emit())
+	_root.add_child(_end_btn)
+	# Recruit bar: one button per unit type, with its energy cost.
+	_recruit_bar = UiKit.panel(Color(1.0, 0.8, 0.35))
+	_recruit_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_recruit_bar.custom_minimum_size = Vector2(640, 0)
+	_recruit_bar.position = Vector2(-320, -108)
+	_root.add_child(_recruit_bar)
+	var rv := VBoxContainer.new()
+	_recruit_bar.add_child(rv)
+	rv.add_child(UiKit.label(Texts.RECRUIT, 16, UiKit.GOLD))
+	var grid := GridContainer.new()
+	grid.columns = 7
+	grid.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	rv.add_child(grid)
+	for k in UnitData.recruitable():
+		var b := UiKit.button("%s %d" % [Texts.CHARACTER[k].trim_prefix("ה"), UnitData.cost(k)], UiKit.BUTTON_STEEL, 14)
+		b.custom_minimum_size = Vector2(86, 34)
+		b.tooltip_text = "%s - %s" % [Texts.CHARACTER[k], Texts.TRAIT.get(UnitData.trait_id(k), ["", ""])[1]]
+		b.pressed.connect(func(): recruit_pressed.emit(k))
+		grid.add_child(b)
+		_recruit_buttons[k] = b
+	_recruit_bar.visible = false
 
 
 func _overlay() -> Control:
@@ -296,7 +340,7 @@ void fragment() {
 	var bar := UiKit.panel()
 	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	bar.custom_minimum_size = Vector2(760, 0)
-	bar.position = Vector2(-380, -250)
+	bar.position = Vector2(-380, -300)
 	_menu.add_child(bar)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
@@ -326,6 +370,20 @@ void fragment() {
 		b.pressed.connect(func(): _level = i; _refresh_menu())
 		_level_row.add_child(b)
 		_level_buttons.append(b)
+	var scenes := HBoxContainer.new()
+	scenes.add_theme_constant_override("separation", 10)
+	scenes.layout_direction = Control.LAYOUT_DIRECTION_RTL
+	v.add_child(scenes)
+	var sl := UiKit.label(Texts.BATTLE_SCENES, 19, UiKit.TEXT_SOFT)
+	sl.custom_minimum_size = Vector2(110, 0)
+	scenes.add_child(sl)
+	for i in Texts.SCENE_MODES.size():
+		var b := UiKit.button(Texts.SCENE_MODES[i], UiKit.BUTTON_BRONZE, 18)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 44)
+		b.pressed.connect(func(): scene_mode = i; _refresh_menu())
+		scenes.add_child(b)
+		_scene_buttons.append(b)
 	var last := HBoxContainer.new()
 	last.add_theme_constant_override("separation", 12)
 	last.layout_direction = Control.LAYOUT_DIRECTION_RTL
@@ -358,6 +416,8 @@ func _refresh_menu() -> void:
 	for i in _level_buttons.size():
 		_level_buttons[i].modulate = Color(1, 1, 1) if i == _level else Color(0.5, 0.48, 0.45)
 	_level_row.visible = _vs_ai
+	for i in _scene_buttons.size():
+		_scene_buttons[i].modulate = Color(1, 1, 1) if i == scene_mode else Color(0.5, 0.48, 0.45)
 
 
 func _build_game_over() -> void:
@@ -420,17 +480,6 @@ func _build_odds_panel() -> void:
 	_odds_panel.visible = false
 
 
-func show_odds(odds: Dictionary, attacker: String, defender: String) -> void:
-	_odds_title.text = "%s  %d%%" % [Texts.WIN_CHANCE, odds["chance"]]
-	_odds_title.add_theme_color_override("font_color", _chance_color(odds["chance"]))
-	var lines := ["%s  נגד  %s" % [attacker, defender]]
-	for l in odds["lines"]:
-		var d: int = l[1]
-		lines.append("%s   %s%d%%" % [Texts.odds_line(l[0]), "+" if d > 0 else "", d])
-	_odds_body.text = "\n".join(lines)
-	_odds_panel.visible = true
-
-
 func hide_odds() -> void:
 	_odds_panel.visible = false
 
@@ -486,7 +535,7 @@ func show_menu(visible_now: bool, can_resume: bool = true) -> void:
 	_menu.visible = visible_now
 	_menu_resume.visible = can_resume
 	# The board UI hides behind the menu so the live scene shows.
-	for c in [_banner.get_parent().get_parent(), _char_panel, _undo_btn.get_parent()]:
+	for c in [_banner.get_parent().get_parent(), _char_panel, _undo_btn.get_parent(), _end_btn, _recruit_bar]:
 		c.visible = not visible_now if c != _char_panel else false
 	for col in _team_cards.values():
 		col["panel"].get_parent().visible = not visible_now
@@ -526,12 +575,10 @@ func update_state(state: GameState, controller: GameController) -> void:
 		_banner_label.text = Texts.YOU
 	else:
 		_banner_label.text = Texts.TURN_OF % Texts.TEAM[me]
+	_banner_label.text = "%s  ·  %s" % [Texts.TURN_N % (state.ply / 2 + 1), _banner_label.text]
 	if me != _turn_color:
 		_turn_color = me
 		_set_turn_look(me)
-	var lost := { Chess.WHITE: 16, Chess.BLACK: 16 }  # 16 - alive + 2 = units (14 per side)
-	for p in state.all_pieces():
-		lost[p.color] -= 1
 	for color in _team_cards:
 		var c: Dictionary = _team_cards[color]
 		var active: bool = color == me and not controller.is_over()
@@ -550,18 +597,16 @@ func update_state(state: GameState, controller: GameController) -> void:
 		c["energy"].text = "%s: %d/%d" % [Texts.ENERGY, e, Balance.energy_max()]
 		c["energy"].visible = state.abilities_enabled
 		c["pips"].visible = state.abilities_enabled
-		var pips: Array = c["pips"].get_children()
-		for i in pips.size():
-			var sbp := StyleBoxFlat.new()
-			sbp.set_corner_radius_all(3)
-			sbp.corner_radius_top_left = 9
-			sbp.corner_radius_top_right = 9
-			sbp.bg_color = Color(0.35, 0.75, 1.0) if i < e else Color(0.14, 0.13, 0.16)
-			sbp.border_color = Color(0.85, 0.95, 1.0, 0.8) if i < e else Color(0.3, 0.27, 0.24)
-			sbp.set_border_width_all(1)
-			pips[i].add_theme_stylebox_override("panel", sbp)
-		c["captured"].text = "%s   ·   %s" % [Texts.INCOME % state.income(color), Texts.UNITS_LEFT % (16 - lost[color])]
+		c["pips"].value = e
+		c["captured"].text = "%s   ·   %s" % [Texts.INCOME % state.income(color), Texts.UNITS_LEFT % state.units_of(color).size()]
 	_undo_btn.disabled = not controller.can_undo()
+	var human := controller.is_human_turn()
+	_end_btn.disabled = not human
+	_recruit_bar.visible = human and not _menu.visible
+	var spots := Rules.spawn_squares(state, me)
+	for k in _recruit_buttons:
+		var b: Button = _recruit_buttons[k]
+		b.disabled = int(state.energy[me]) < UnitData.cost(k) or spots.is_empty()
 
 
 ## Colours of the banner and the screen tint follow the side to move.
@@ -622,7 +667,8 @@ func set_thinking(on: bool) -> void:
 	set_hint(Texts.AI_THINKING if on else "")
 
 
-## Shows the character on `s` and its power card. targeting = choosing a target now.
+## Shows the unit on `s`: stats, trait, effects and its power card.
+## targeting = choosing a target for the power right now.
 func show_character(state: GameState, s: int, power_targets: int, targeting: bool) -> void:
 	var p := state.piece_at(s)
 	if p == null:
@@ -631,9 +677,9 @@ func show_character(state: GameState, s: int, power_targets: int, targeting: boo
 	_char_panel.visible = true
 	_card_name.text = Texts.character(p.kind, p.color)
 	_card_name.add_theme_color_override("font_color", Style.team(p.color)["ui"])
-	_card_role.text = "%s · %s" % [Texts.ROLE[p.kind], Texts.TEAM[p.color]]
-	var mt := UnitData.move_type(p.kind)
-	_card_moves.text = Texts.MOVES[mt] % UnitData.move_range(p.kind) if mt != "knight" else Texts.MOVES[mt]
+	_card_role.text = "%s  %d/%d" % [Texts.HP, p.hp, p.max_hp]
+	_card_moves.text = "%s %d  ·  %s %d  ·  %s %d  ·  %s %d" % [Texts.ATK, UnitData.attack(p.kind), Texts.DEF,
+		UnitData.armor(p.kind), Texts.MOVE, UnitData.move_points(p.kind), Texts.RANGE, UnitData.attack_range(p.kind)]
 	var tr: Array = Texts.TRAIT.get(UnitData.trait_id(p.kind), ["", ""])
 	_card_trait.text = "%s: %s" % [tr[0], tr[1]]
 	var flags := []
@@ -641,7 +687,9 @@ func show_character(state: GameState, s: int, power_targets: int, targeting: boo
 		flags.append(Texts.FROZEN)
 	if state.is_shielded(p):
 		flags.append(Texts.SHIELDED)
-	_card_status.text = "  ".join(flags)
+	if p.color == state.side_to_move and p.acted:
+		flags.append(Texts.DONE)
+	_card_status.text = "  ·  ".join(flags)
 	_cancel_btn.visible = targeting
 	var ab := AbilityRegistry.for_kind(p.kind)
 	_power_card.visible = state.abilities_enabled and ab != null
@@ -662,6 +710,22 @@ func show_character(state: GameState, s: int, power_targets: int, targeting: boo
 		status = Texts.ENEMY_POWER
 	_power_card.setup(ab.id, Texts.ABILITY_NAME[ab.id], Texts.ABILITY_DESC[ab.id], ab.cost, status,
 		mine and power_targets > 0 and not targeting, targeting)
+
+
+## The damage preview when hovering an attack target.
+func show_preview(attacker: String, defender: String, pv: Dictionary) -> void:
+	_odds_title.text = "%s  נגד  %s" % [attacker, defender]
+	_odds_title.add_theme_color_override("font_color", UiKit.GOLD)
+	var lines := [Texts.PREVIEW % pv["damage"]]
+	if pv["kills"]:
+		lines.append(Texts.PREVIEW_KILL)
+	elif pv["counter"] > 0:
+		lines.append(Texts.PREVIEW_COUNTER % pv["counter"])
+		if pv["dies"]:
+			lines.append(Texts.PREVIEW_DIES)
+	_odds_body.text = "\n".join(lines)
+	_odds_body.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5) if pv["kills"] else (Color(1.0, 0.45, 0.35) if pv["dies"] else UiKit.TEXT))
+	_odds_panel.visible = true
 
 
 func hide_character() -> void:

@@ -49,7 +49,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var font := UiKit.title_font()
 	draw_string(font, Vector2(0, 18), _name, HORIZONTAL_ALIGNMENT_CENTER, W, 20, Color(1, 0.95, 0.85))
-	draw_string(UiKit.body_font(), Vector2(0, 34), "%s %d%%" % [Texts.POWER, _power], HORIZONTAL_ALIGNMENT_CENTER, W, 15, _color.lightened(0.3))
+	draw_string(UiKit.body_font(), Vector2(0, 34), "%s %d" % [Texts.ATK, _power], HORIZONTAL_ALIGNMENT_CENTER, W, 15, _color.lightened(0.3))
 	var bar := Rect2(10, 40, W - 20, 16)
 	draw_rect(bar.grow(3), Color(0.05, 0.04, 0.04, 0.9))
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * _shown_hp / 100.0, bar.size.y)), Color(0.85, 0.2, 0.15))

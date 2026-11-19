@@ -57,23 +57,25 @@ func skip() -> void:
 	_skip = true
 
 
-## Plays one battle. `e` is the "battle" event from Rules; colors = [attacker, defender].
+## Plays one attack. `e` is the "attack" event from Rules (damage, counter and
+## health before/after are already decided).
 func play(e: Dictionary, terrain: int, att_color: int, hud: Hud) -> void:
 	_skip = false
 	_build_set(terrain, att_color)
 	var a := _spawn(e["attacker_kind"], att_color, Vector3(-1.7, 0, 0), 90.0)
 	var d := _spawn(e["defender_kind"], Chess.other(att_color), Vector3(1.7, 0, 0), -90.0)
-	var won: bool = e["won"]
-	var chance: int = e["chance"]
 	_lights[0].light_color = Style.team(att_color)["ui"]
 	_lights[1].light_color = Style.team(Chess.other(att_color))["ui"]
-	# Fade to the arena
+	var a_max := UnitData.max_hp(e["attacker_kind"])
+	var d_max := UnitData.max_hp(e["defender_kind"])
 	await hud.fade(1.0, 0.25)
 	visible = true
 	_camera.make_current()
 	_shot(Vector3(0, 3.4, 10.5), Vector3(0, 1.2, 0))
-	_bar_a.setup(Texts.character(e["attacker_kind"], att_color), chance, Style.team(att_color)["ui"])
-	_bar_d.setup(Texts.character(e["defender_kind"], Chess.other(att_color)), 100 - chance, Style.team(Chess.other(att_color))["ui"])
+	_bar_a.setup(Texts.character(e["attacker_kind"], att_color), UnitData.attack(e["attacker_kind"]), Style.team(att_color)["ui"])
+	_bar_d.setup(Texts.character(e["defender_kind"], Chess.other(att_color)), UnitData.attack(e["defender_kind"]), Style.team(Chess.other(att_color))["ui"])
+	_bar_a.set_hp(100.0 * int(e["attacker_hp_before"]) / a_max)
+	_bar_d.set_hp(100.0 * int(e["defender_hp_before"]) / d_max)
 	_bar_a.target = a
 	_bar_d.target = d
 	_bar_a.cam = _camera
@@ -81,35 +83,36 @@ func play(e: Dictionary, terrain: int, att_color: int, hud: Hud) -> void:
 	_bars.visible = true
 	hud.show_battle_skip(true)
 	await hud.fade(0.0, 0.3)
-	# Slow push-in while both sides size each other up.
 	var tw := create_tween()
 	tw.tween_method(func(t: float): _shot(Vector3(0, 3.4 - t * 0.6, 10.5 - t * 2.5), Vector3(0, 1.2, 0)), 0.0, 1.0, 0.9)
 	await _wait(0.9)
-	# The fight: blows alternate, the winner lands the last one.
-	for hit in _script(won, chance):
-		if _skip:
-			break
-		var striker: Node3D = a if hit["by_attacker"] else d
-		var target: Node3D = d if hit["by_attacker"] else a
-		var bar: BattleHealthBar = _bar_d if hit["by_attacker"] else _bar_a
-		# Over the striker's shoulder, looking at the target.
-		if hit["by_attacker"]:
-			_shot(Vector3(-6.0, 3.0, 5.5), Vector3(0.8, 1.2, 0))
-		else:
-			_shot(Vector3(6.0, 3.0, 5.5), Vector3(-0.8, 1.2, 0))
-		await _strike(striker, target, bar, hit["damage"], hit["final"])
-	if _skip:
-		_bar_a.set_hp(100 if won else 0)
-		_bar_d.set_hp(0 if won else 100)
-	# Finale: the loser falls, the winner cheers.
-	var loser := d if won else a
-	var winner := a if won else d
-	_shot(loser.position + Vector3(0, 2.2, 6.0), loser.position + Vector3(0, 1.0, 0))
-	_play(loser, "death")
-	await _wait(0.9)
-	_play(winner, "victory")
+	var d_dead := int(e["defender_hp"]) <= 0
+	var a_dead := int(e["attacker_hp"]) <= 0
+	# The attacker strikes...
 	if not _skip:
-		await _wait(1.1)
+		_shot(Vector3(-6.0, 3.0, 5.5), Vector3(0.8, 1.2, 0))
+		await _strike(a, d, _bar_d, roundi(100.0 * int(e["damage"]) / d_max), d_dead, int(e["damage"]))
+	# ...and the defender hits back if it can.
+	if not _skip and int(e["counter"]) > 0:
+		_shot(Vector3(6.0, 3.0, 5.5), Vector3(-0.8, 1.2, 0))
+		await _strike(d, a, _bar_a, roundi(100.0 * int(e["counter"]) / a_max), a_dead, int(e["counter"]))
+	_bar_d.set_hp(100.0 * int(e["defender_hp"]) / d_max)
+	_bar_a.set_hp(100.0 * int(e["attacker_hp"]) / a_max)
+	# Finale: whoever fell, falls; the other cheers.
+	var loser: Node3D = d if d_dead else (a if a_dead else null)
+	var winner: Node3D = a if d_dead else (d if a_dead else null)
+	if loser != null:
+		_shot(loser.position + Vector3(0, 2.2, 6.0), loser.position + Vector3(0, 1.0, 0))
+		_play(loser, "death")
+		await _wait(0.9)
+	if winner != null:
+		_play(winner, "victory")
+	else:
+		_shot(Vector3(0, 3.0, 8.5), Vector3(0, 1.2, 0))
+		_play(a, "idle", true)
+		_play(d, "idle", true)
+	if not _skip:
+		await _wait(1.0)
 	await hud.fade(1.0, 0.25)
 	hud.show_battle_skip(false)
 	_bars.visible = false
@@ -121,36 +124,8 @@ func play(e: Dictionary, terrain: int, att_color: int, hud: Hud) -> void:
 
 # ------------------------------------------------------------ the fight
 
-## The list of blows. The winner keeps about as much health as its win chance.
-func _script(won: bool, chance: int) -> Array:
-	var rng := RandomNumberGenerator.new()
-	var winner_left := clampi((chance if won else 100 - chance) - rng.randi_range(0, 20), 12, 85)
-	var loser_hits := [rng.randi_range(25, 40), rng.randi_range(25, 35)]
-	loser_hits.append(100 - loser_hits[0] - loser_hits[1])   # final blow takes the rest
-	var winner_hits := [100 - winner_left]
-	if winner_hits[0] > 30:
-		var half: int = winner_hits[0] >> 1
-		winner_hits = [half, winner_hits[0] - half]
-	var out := []
-	# Attacker opens, they alternate, the winner strikes last.
-	var a_hits: Array = loser_hits if won else winner_hits
-	var d_hits: Array = winner_hits if won else loser_hits
-	var turn_a := true
-	while not a_hits.is_empty() or not d_hits.is_empty():
-		var list: Array = a_hits if turn_a else d_hits
-		if not list.is_empty():
-			# The winner's final blow must come last.
-			var is_winner := turn_a == won
-			var other: Array = d_hits if turn_a else a_hits
-			if list.size() == 1 and is_winner and not other.is_empty():
-				turn_a = not turn_a
-				continue
-			out.append({ "by_attacker": turn_a, "damage": list.pop_front(), "final": list.is_empty() and is_winner })
-		turn_a = not turn_a
-	return out
-
-
-func _strike(striker: Node3D, target: Node3D, bar: BattleHealthBar, damage: int, final: bool) -> void:
+## One blow: `damage` is in bar percent, `shown` is the real number that pops up.
+func _strike(striker: Node3D, target: Node3D, bar: BattleHealthBar, damage: int, final: bool, shown: int) -> void:
 	var home := striker.position
 	var toward := (target.position - striker.position).normalized()
 	var tw := create_tween()
@@ -162,7 +137,7 @@ func _strike(striker: Node3D, target: Node3D, bar: BattleHealthBar, damage: int,
 	Effects.burst(self, target.position + Vector3(0, 1.3, 0) - toward * 0.3, Color(1.0, 0.85, 0.35), 30, 3.5, 0.06)
 	_flash_target(target)
 	bar.damage(damage)
-	_floating_number(target.position + Vector3(0, 2.8, 0), damage)
+	_floating_number(target.position + Vector3(0, 2.8, 0), shown)
 	if final:
 		Engine.time_scale = 0.35
 		await _wait(0.25)

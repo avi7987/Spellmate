@@ -28,7 +28,7 @@ func load_balance() -> void:
 func can_activate(state: GameState, from: int) -> bool:
 	var p := state.piece_at(from)
 	return state.abilities_enabled and p != null and p.kind == piece_kind \
-		and p.color == state.side_to_move and not state.is_frozen(p) \
+		and p.color == state.side_to_move and not state.is_frozen(p) and not p.acted \
 		and int(state.energy[p.color]) >= cost and state.ply >= p.ability_ready_ply
 
 

@@ -42,6 +42,7 @@ const FRAME_WOOD := Color(0.17, 0.10, 0.06)   # dark oak
 const FRAME_GOLD := Color(0.60, 0.44, 0.20)   # aged bronze
 const GRASS := Color(0.17, 0.27, 0.14)        # dark moss
 const TILE_FOREST := Color(0.20, 0.32, 0.17)
+const GRASS_TILE := Color(0.30, 0.40, 0.22)
 const TILE_HILL := Color(0.44, 0.40, 0.30)
 const TILE_MINE := Color(0.16, 0.15, 0.20)
 const TILE_CASTLE := Color(0.50, 0.49, 0.47)
@@ -76,6 +77,7 @@ const POWER_THEME := {
 	"fire_breath": { "color": Color(1.0, 0.52, 0.16), "dark": Color(0.26, 0.04, 0.02), "icon": "flame" },
 	"brace": { "color": Color(0.95, 0.75, 0.40), "dark": Color(0.18, 0.12, 0.05), "icon": "wall" },
 	"toil": { "color": Color(0.35, 0.85, 1.0), "dark": Color(0.03, 0.12, 0.18), "icon": "crystal" },
+	"heal": { "color": Color(0.5, 1.0, 0.55), "dark": Color(0.03, 0.16, 0.06), "icon": "shield" },
 }
 
 

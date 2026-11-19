@@ -1,25 +1,33 @@
 class_name GameAction
 extends RefCounted
-## A single thing a player does on their turn: a chess move OR an ability.
+## One thing a player does during a turn: move a unit, attack, use a power,
+## recruit a new unit at the palace gate, or end the turn.
 ## Actions are plain data so they can be saved, replayed or sent over a network.
 
-enum Type { MOVE, ABILITY, PASS }
+enum Type { MOVE, ABILITY, END_TURN, ATTACK, RECRUIT }
 
 var type: int = Type.MOVE
 var from: int = -1
-## Destination square for a move, target square for an ability.
+## Destination (move), target (attack/ability) or spawn square (recruit).
 var to: int = -1
-## Piece kind to promote to (moves only, 0 = none).
-var promotion: int = 0
+## Unit kind to recruit.
+var kind: int = 0
 var ability_id: String = ""
 
 
-static func move(p_from: int, p_to: int, p_promotion: int = 0) -> GameAction:
+static func move(p_from: int, p_to: int) -> GameAction:
 	var a := GameAction.new()
 	a.type = Type.MOVE
 	a.from = p_from
 	a.to = p_to
-	a.promotion = p_promotion
+	return a
+
+
+static func attack(p_from: int, p_target: int) -> GameAction:
+	var a := GameAction.new()
+	a.type = Type.ATTACK
+	a.from = p_from
+	a.to = p_target
 	return a
 
 
@@ -32,9 +40,17 @@ static func ability(p_id: String, p_from: int, p_target: int) -> GameAction:
 	return a
 
 
-static func pass_turn() -> GameAction:
+static func recruit(p_kind: int, p_square: int) -> GameAction:
 	var a := GameAction.new()
-	a.type = Type.PASS
+	a.type = Type.RECRUIT
+	a.kind = p_kind
+	a.to = p_square
+	return a
+
+
+static func end_turn() -> GameAction:
+	var a := GameAction.new()
+	a.type = Type.END_TURN
 	return a
 
 
@@ -44,11 +60,11 @@ func is_move() -> bool:
 
 func equals(o: GameAction) -> bool:
 	return o != null and type == o.type and from == o.from and to == o.to \
-		and promotion == o.promotion and ability_id == o.ability_id
+		and kind == o.kind and ability_id == o.ability_id
 
 
 func to_dict() -> Dictionary:
-	return { "type": type, "from": from, "to": to, "promotion": promotion, "ability_id": ability_id }
+	return { "type": type, "from": from, "to": to, "kind": kind, "ability_id": ability_id }
 
 
 static func from_dict(d: Dictionary) -> GameAction:
@@ -56,14 +72,19 @@ static func from_dict(d: Dictionary) -> GameAction:
 	a.type = int(d.get("type", Type.MOVE))
 	a.from = int(d.get("from", -1))
 	a.to = int(d.get("to", -1))
-	a.promotion = int(d.get("promotion", 0))
+	a.kind = int(d.get("kind", 0))
 	a.ability_id = str(d.get("ability_id", ""))
 	return a
 
 
 func _to_string() -> String:
-	if type == Type.ABILITY:
-		return "%s:%s>%s" % [ability_id, Chess.square_name(from), Chess.square_name(to)]
-	if type == Type.PASS:
-		return "pass"
+	match type:
+		Type.ABILITY:
+			return "%s:%s>%s" % [ability_id, Chess.square_name(from), Chess.square_name(to)]
+		Type.END_TURN:
+			return "end"
+		Type.ATTACK:
+			return "%sx%s" % [Chess.square_name(from), Chess.square_name(to)]
+		Type.RECRUIT:
+			return "+%s@%s" % [Chess.KIND_NAMES.get(kind, "?"), Chess.square_name(to)]
 	return Chess.square_name(from) + Chess.square_name(to)

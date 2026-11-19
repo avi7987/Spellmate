@@ -34,7 +34,7 @@ func _process(_delta: float) -> bool:
 				st.board[Chess.parse_square(parts[3])] = null
 				st.add_piece(Chess.kind_from_name(parts[1]), int(parts[2]), Chess.parse_square(parts[3]))
 				continue
-			if text.begins_with("select:") or text == "power" or text == "battlebar" or text.begins_with("odds:") or text.begins_with("arena:"):
+			if text.begins_with("select:") or text == "power" or text == "battlebar" or text.begins_with("arena:"):
 				ui_steps.append(text)
 				continue
 			for a in Rules.legal_actions(_main.controller.state):
@@ -54,18 +54,14 @@ func _process(_delta: float) -> bool:
 				h._battle_result.text = Texts.VICTORY
 				h._battle_result.add_theme_color_override("font_color", Color(0.45, 0.95, 0.45))
 				continue
-			if text.begins_with("odds:"):  # odds:<from>><to>
-				var ft: PackedStringArray = text.substr(5).split(">")
-				var st2: GameState = _main.controller.state
-				var a2 := st2.piece_at(Chess.parse_square(ft[0]))
-				var d2 := st2.piece_at(Chess.parse_square(ft[1]))
-				_main.hud.show_odds(Combat.odds(st2, Chess.parse_square(ft[0]), Chess.parse_square(ft[1])),
-					Texts.character(a2.kind, a2.color), Texts.character(d2.kind, d2.color))
-				continue
 			if text.begins_with("arena:"):  # arena:<attacker kind>:<defender kind>:<terrain>:<won 0/1>
 				var q: PackedStringArray = text.split(":")
-				var ev := { "attacker_kind": Chess.kind_from_name(q[1]), "defender_kind": Chess.kind_from_name(q[2]),
-					"chance": 65, "roll": 30, "won": q[4] == "1", "phased": false }
+				var ak := Chess.kind_from_name(q[1])
+				var dk := Chess.kind_from_name(q[2])
+				var kill := q[4] == "1"
+				var ev := { "attacker_kind": ak, "defender_kind": dk, "damage": 6, "counter": 0 if kill else 3,
+					"attacker_hp_before": UnitData.max_hp(ak), "attacker_hp": UnitData.max_hp(ak) - (0 if kill else 3),
+					"defender_hp_before": 6 if kill else UnitData.max_hp(dk), "defender_hp": 0 if kill else UnitData.max_hp(dk) - 6 }
 				_main.combat.arena.play(ev, int(q[3]), 0, _main.hud)
 				continue
 			if text == "power":

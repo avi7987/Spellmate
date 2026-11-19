@@ -39,8 +39,10 @@ static func build(kind: int, color: int) -> Node3D:
 		Chess.Kind.QUEEN: _witch(root, color)
 		Chess.Kind.ROOK: _golem(root, color)
 		Chess.Kind.BISHOP: _wizard(root, color)
-		Chess.Kind.KNIGHT: _dragon(root, color)
-		Chess.Kind.PAWN, Chess.Kind.MINER: _shieldbearer(root, color)
+		Chess.Kind.DRAGON: _dragon(root, color)
+		Chess.Kind.BALLISTA: _ballista(root, color)
+		_: _shieldbearer(root, color)
+	root.scale = Vector3.ONE * float(def.get("scale", 1.0))
 	root.set_meta("anims", {})
 	root.set_meta("player", null)
 	return root
@@ -406,3 +408,22 @@ static func _shieldbearer(root: Node3D, color: int) -> void:
 	_add(root, _cyl(0.0, 0.045, 0.12), metal, Vector3(0.22, 0.7, 0.05))
 	_hands(root, Style.toon(Style.SKIN), 0.3, 0.2)
 	_feet(root, Style.toon(Color(0.45, 0.28, 0.15)))
+
+
+## The Ballista: a wooden siege crossbow on wheels with a big bolt.
+static func _ballista(root: Node3D, color: int) -> void:
+	var t := Style.team(color)
+	var wood := Style.toon(Color(0.42, 0.27, 0.15), 0.0, 0.85)
+	var metal := Style.metal(t["metal"])
+	_add(root, _box(Vector3(0.5, 0.12, 0.7)), wood, Vector3(0, 0.22, 0))                               # frame
+	for x in [-0.28, 0.28]:
+		for z in [-0.22, 0.22]:
+			_add(root, _cyl(0.12, 0.12, 0.06), wood, Vector3(x, 0.13, z), Vector3(0, 0, 90))           # wheels
+	_add(root, _box(Vector3(0.12, 0.12, 0.75)), wood, Vector3(0, 0.38, 0.05), Vector3(-12, 0, 0))     # rail
+	_add(root, _box(Vector3(0.9, 0.07, 0.07)), wood, Vector3(0, 0.45, 0.3), Vector3(0, 0, 0))          # bow arms
+	for side in [-1.0, 1.0]:
+		_add(root, _box(Vector3(0.05, 0.05, 0.3)), metal, Vector3(side * 0.43, 0.45, 0.18), Vector3(0, side * 30.0, 0))
+	_add(root, _cyl(0.025, 0.025, 0.8), metal, Vector3(0, 0.46, 0.1), Vector3(90, 0, 0))               # bolt
+	_add(root, _cyl(0.0, 0.05, 0.12), metal, Vector3(0, 0.46, 0.52), Vector3(90, 0, 0))                # bolt tip
+	_add(root, _box(Vector3(0.3, 0.2, 0.03)), Style.cloth(t["cloth"]), Vector3(0, 0.42, -0.36))          # team shield
+

@@ -124,6 +124,52 @@ func screen_segment(cam: Camera3D) -> Array:
 	return [cam.unproject_position(feet), cam.unproject_position(head)]
 
 
+## Health bar over the head (shown once the unit is hurt).
+func set_health(hp: int, max_hp: int) -> void:
+	if _bar == null:
+		_bar = HealthBar3D.new()
+		_bar.bar_color = Style.team(color)["ui"]
+		_bar.position = Vector3(0, 1.45, 0)
+		add_child(_bar)
+	_bar.set_health(hp, max_hp)
+
+
+## A unit that already used its turn is shown a little darker.
+func set_spent(spent: bool) -> void:
+	if spent == _spent:
+		return
+	_spent = spent
+	if _base != null:
+		_base.material_override = Style.metal(Style.team(color)["metal"].darkened(0.6 if spent else 0.0))
+
+
+## Walks along a list of world points (one square at a time).
+func walk_path(points: Array) -> void:
+	if points.is_empty():
+		return
+	if _player != null and _anims.has("move"):
+		var walk: Animation = _player.get_animation(_anims["move"])
+		walk.loop_mode = Animation.LOOP_LINEAR
+		_player.play(_anims["move"], 0.1)
+	var flying := kind == Chess.Kind.DRAGON
+	for pt in points:
+		var target: Vector3 = pt
+		# Face the way we walk.
+		var dir: Vector3 = target - position
+		if dir.length() > 0.01 and _model != null:
+			_model.rotation.y = atan2(dir.x, dir.z)
+		var tw := create_tween()
+		tw.tween_property(self, "position", target, 0.16)
+		if flying:
+			tw.parallel().tween_property(_hop, "position:y", 0.6, 0.16)
+		await tw.finished
+	if _model != null:
+		var face := create_tween()
+		face.tween_property(_model, "rotation:y", 0.0, 0.2)
+	_hop.position.y = 0.0
+	_play_idle()
+
+
 ## Turn so the character leans toward the camera (yaw 0 = White at the bottom).
 func set_facing(yaw_degrees: float) -> void:
 	rotation_degrees.y = yaw_degrees
@@ -161,6 +207,8 @@ func set_status(shielded: bool, frozen: bool) -> void:
 
 
 var _orbit: Node3D
+var _bar: HealthBar3D
+var _spent := false
 
 
 func _process(delta: float) -> void:

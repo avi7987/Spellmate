@@ -24,20 +24,32 @@ static func unit(kind: int) -> Dictionary:
 	return _units.get(Chess.KIND_NAMES.get(kind, ""), {})
 
 
-static func move_type(kind: int) -> String:
-	return unit(kind).get("move", "all")
+static func max_hp(kind: int) -> int:
+	return int(unit(kind).get("hp", 10))
 
 
-static func move_range(kind: int) -> int:
+static func attack(kind: int) -> int:
+	return int(unit(kind).get("atk", 3))
+
+
+static func armor(kind: int) -> int:
+	return int(unit(kind).get("def", 0))
+
+
+static func move_points(kind: int) -> int:
+	return int(unit(kind).get("move", 3))
+
+
+static func attack_range(kind: int) -> int:
 	return int(unit(kind).get("range", 1))
 
 
-static func attack_bonus(kind: int) -> int:
-	return int(unit(kind).get("atk", 0))
+static func cost(kind: int) -> int:
+	return int(unit(kind).get("cost", 0))
 
 
-static func defense_bonus(kind: int) -> int:
-	return int(unit(kind).get("def", 0))
+static func vision(kind: int) -> int:
+	return int(unit(kind).get("vision", 4))
 
 
 static func trait_id(kind: int) -> String:
@@ -46,6 +58,20 @@ static func trait_id(kind: int) -> String:
 
 static func value(kind: int) -> int:
 	return int(unit(kind).get("value", 100))
+
+
+## Unit types that can be recruited at the palace gate, cheapest first.
+static func recruitable() -> Array:
+	var out := []
+	for k in Chess.KIND_NAMES:
+		if cost(k) > 0:
+			out.append(k)
+	out.sort_custom(func(a, b): return cost(a) < cost(b))
+	return out
+
+
+static func structure(kind: String) -> Dictionary:
+	return Balance.data().get("structures", {}).get(kind, {})
 
 
 static func map_data() -> Dictionary:
@@ -65,6 +91,21 @@ static func terrain_grid() -> PackedInt32Array:
 		for f in mini(row.length(), Chess.W):
 			grid[Chess.sq(f, rank)] = Chess.TERRAIN_CHARS.get(row[f], Chess.Terrain.PLAIN)
 	return grid
+
+
+## Gates ("G") and towers ("T") on the map: [[square, "gate"/"tower"], ...]
+static func map_structures() -> Array:
+	var out := []
+	var rows: Array = map_data().get("rows", [])
+	for i in rows.size():
+		var rank := Chess.H - 1 - i
+		var row: String = rows[i]
+		for f in mini(row.length(), Chess.W):
+			if row[f] == "G":
+				out.append([Chess.sq(f, rank), "gate"])
+			elif row[f] == "T":
+				out.append([Chess.sq(f, rank), "tower"])
+	return out
 
 
 ## Starting army of the Sun: square -> kind. The Void gets the mirror image.
