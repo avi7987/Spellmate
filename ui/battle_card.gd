@@ -1,8 +1,10 @@
 class_name BattleCard
 extends Control
-## One card of the deck, like a page of an illuminated manuscript: parchment,
-## a gold frame, a picture of the hero (or a drawn spell), the energy cost in a
-## crystal, the name in ink. Shows if it is planned, waiting or too expensive.
+## One card of the deck, mobile-game style: a rounded card with a coloured
+## frame (blue = cheap, orange = medium, purple = expensive, green = spell),
+## a picture of the hero (or a drawn spell), the energy cost in a pink drop,
+## the name in white outlined letters. Shows if it is planned, recharging or
+## too expensive.
 
 signal pressed(idx: int)
 
@@ -13,7 +15,7 @@ var idx := 0
 var card_id := ""
 var cost := 0
 var key_hint := ""
-var wait := 0.0          ## seconds until ready, -1 = hero on the field
+var wait := 0.0          ## seconds until ready
 var affordable := true
 var chosen := false      ## planned this turn / being aimed
 var turn_seconds := 0.0  ## > 0: show waits in turns
@@ -35,7 +37,7 @@ func setup(p_idx: int, id: String) -> void:
 	card_id = id
 	cost = int(BattleData.card(id).get("cost", 0))
 	key_hint = str(p_idx + 1)
-	tooltip_text = "%s  (◆%d)\n%s" % [HeroTexts.name_of(id), cost, HeroTexts.role_of(id)]
+	tooltip_text = "%s (%d אנרגיה)\n%s" % [HeroTexts.name_of(id), cost, HeroTexts.role_of(id)]
 
 
 func set_state(p_wait: float, p_affordable: bool, p_chosen: bool, p_turn_seconds: float = 0.0) -> void:
@@ -63,65 +65,76 @@ func ready_now() -> bool:
 	return wait == 0.0 and affordable
 
 
+func rarity_color() -> Color:
+	if BattleData.is_spell(card_id):
+		return Color(0.35, 0.8, 0.35)
+	if cost >= 6:
+		return Color(0.7, 0.35, 0.95)
+	if cost >= 4:
+		return Color(1.0, 0.6, 0.15)
+	return Color(0.35, 0.6, 1.0)
+
+
 func _draw() -> void:
 	var lift := -7.0 if (_hover or chosen) and (ready_now() or chosen) else 0.0
 	var r := Rect2(Vector2(2, 3 + lift), Vector2(W - 4, H - 6))
-	var spell := BattleData.is_spell(card_id)
-	# parchment body
-	var sb := StyleBoxTexture.new()
-	sb.texture = UiKit.TEX_PAPER
-	sb.set_texture_margin_all(16)
-	draw_style_box(sb, r)
-	var gold := UiKit.GOLD_DARK
+	var frame := rarity_color()
 	if chosen:
-		gold = Color(0.2, 0.55, 0.15).lerp(UiKit.GOLD, 0.5 + 0.5 * sin(_time * 6.0))
-	draw_rect(r.grow(-1), gold, false, 3.0)
+		frame = Color(0.4, 1.0, 0.4).lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0))
+	draw_style_box(UiKit.frame_style(UiKit.PANEL_EDGE, 3, frame), r)
 	# picture window
-	var art := Rect2(r.position + Vector2(7, 7), Vector2(r.size.x - 14, r.size.y - 40))
-	var bg := Color(0.30, 0.20, 0.36) if spell else Color(0.36, 0.30, 0.22)
-	draw_rect(art, bg)
+	var art := Rect2(r.position + Vector2(6, 6), Vector2(r.size.x - 12, r.size.y - 34))
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = frame.darkened(0.55)
+	bg.set_corner_radius_all(9)
+	draw_style_box(bg, art)
 	var tex := Portraits.get_tex(card_id, 0)
 	if tex != null:
 		draw_texture_rect(tex, art, false)
-	elif spell:
+	elif BattleData.is_spell(card_id):
 		_spell_icon(card_id, art.get_center(), art.size.x * 0.32)
-	draw_rect(art, UiKit.INK, false, 2.0)
-	# name in ink
+	# name
 	var name := HeroTexts.name_of(card_id)
-	var fs := 16 if name.length() <= 8 else 13
-	draw_string(UiKit.FONT_BOLD, Vector2(r.position.x, r.end.y - 11), name, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, UiKit.INK)
-	# cost crystal
-	var g := r.position + Vector2(14, 15)
-	var gem := PackedVector2Array([g + Vector2(0, -14), g + Vector2(12, 0), g + Vector2(0, 14), g + Vector2(-12, 0)])
-	draw_colored_polygon(gem, Style.CRYSTAL.darkened(0.3))
-	draw_polyline(gem + PackedVector2Array([gem[0]]), UiKit.INK, 2.0, true)
-	draw_string_outline(UiKit.FONT_BOLD, g + Vector2(-12, 6), str(cost), HORIZONTAL_ALIGNMENT_CENTER, 24, 18, 4, UiKit.OUTLINE)
-	draw_string(UiKit.FONT_BOLD, g + Vector2(-12, 6), str(cost), HORIZONTAL_ALIGNMENT_CENTER, 24, 18, Color.WHITE)
+	UiKit.draw_text_outlined(self, Vector2(r.position.x + 2, r.end.y - 9), name, r.size.x - 4, 16 if name.length() <= 7 else 13, Color.WHITE, 5)
+	# cost drop (pink, like an elixir drop)
+	var g := r.position + Vector2(13, 13)
+	draw_circle(g, 14.0, UiKit.PANEL_EDGE)
+	draw_circle(g, 11.5, Color(0.95, 0.3, 0.75))
+	draw_circle(g + Vector2(-3, -4), 4.0, Color(1, 1, 1, 0.45))
+	UiKit.draw_text_outlined(self, g + Vector2(-14, 7), str(cost), 28, 19, Color.WHITE, 5)
 	if key_hint != "":
-		draw_string(UiKit.FONT_BOLD, r.position + Vector2(r.size.x - 18, 19), key_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiKit.INK_SOFT)
+		UiKit.draw_text_outlined(self, r.position + Vector2(r.size.x - 22, 19), key_hint, 18, 14, UiKit.TEXT_SOFT, 4)
 	if chosen:
-		_ribbon(r, chosen_text, Color(0.18, 0.45, 0.12))
+		_ribbon(r, chosen_text, Color(0.2, 0.6, 0.2))
 		return
 	if wait != 0.0 or not affordable:
-		draw_rect(r, Color(0.15, 0.08, 0.02, 0.5))
+		draw_style_box(_dark(), r)
 		var msg := ""
-		if wait < 0.0:
-			msg = "בקרב"
-		elif wait > 0.0:
-			msg = ("עוד %d תורות" % ceili(wait / turn_seconds)) if turn_seconds > 0.0 else str(ceili(wait))
+		if wait > 0.0:
+			msg = ("עוד %d תורות" % ceili(wait / turn_seconds) if ceili(wait / turn_seconds) > 1 else "בתור הבא") if turn_seconds > 0.0 else str(ceili(wait))
 		elif not affordable:
-			msg = "חסר ◆"
+			msg = "חסרה אנרגיה"
 		if msg != "":
-			_ribbon(r, msg, UiKit.RED_INK)
+			_ribbon(r, msg, Color(0.75, 0.2, 0.15))
+
+
+func _dark() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0, 0, 0, 0.5)
+	s.set_corner_radius_all(14)
+	return s
 
 
 ## A ribbon across the card with a short word.
 func _ribbon(r: Rect2, msg: String, col: Color) -> void:
 	var y := r.position.y + r.size.y * 0.44
-	draw_rect(Rect2(r.position.x - 2, y - 13, r.size.x + 4, 26), col)
-	draw_line(Vector2(r.position.x - 2, y - 13), Vector2(r.end.x + 2, y - 13), UiKit.GOLD, 1.5)
-	draw_line(Vector2(r.position.x - 2, y + 13), Vector2(r.end.x + 2, y + 13), UiKit.GOLD, 1.5)
-	draw_string(UiKit.FONT_BOLD, Vector2(r.position.x, y + 6), msg, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, UiKit.CREAM)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.border_color = UiKit.PANEL_EDGE
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	draw_style_box(sb, Rect2(r.position.x - 3, y - 14, r.size.x + 6, 28))
+	UiKit.draw_text_outlined(self, Vector2(r.position.x, y + 6), msg, r.size.x, 14, Color.WHITE, 4)
 
 
 ## Simple drawn pictures for the spell cards.

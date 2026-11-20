@@ -13,7 +13,7 @@ extends RefCounted
 ##   "player": AnimationPlayer or null
 
 const DATA_PATH := "res://data/characters.json"
-const TEAM_SUFFIX := { Chess.WHITE: "light", Chess.BLACK: "shadow" }
+const TEAM_SUFFIX := { Chess.WHITE: "light", Chess.BLACK: "shadow", 2: "light" }
 
 static var _defs: Dictionary = {}
 static var _materials: Dictionary = {}
@@ -38,6 +38,7 @@ static func build_hero(id: String, color: int) -> Node3D:
 		"king": _king(root, color)
 		"queen": _witch(root, color)
 		"dragon": _dragon(root, color)
+		"goblin", "toad", "imp", "yeti", "scorpion", "gummy", "shroom": _monster(root, id)
 		"ballista": _ballista(root, color)
 		_: _shieldbearer(root, color)
 	root.scale = Vector3.ONE * float(def.get("scale", 1.0))
@@ -527,6 +528,91 @@ static func _dragon(root: Node3D, color: int) -> void:
 		wing.rotation_degrees = Vector3(0, 0, -side * 28.0)
 		wing.scale = Vector3.ONE * 1.25
 		wing.set_meta("base_z", wing.rotation.z)
+
+
+## The neutral monsters of the worlds (cute but grumpy), built from shapes.
+static func _monster(root: Node3D, id: String) -> void:
+	var eye := func(parent: Node3D, pos: Vector3, r: float, glow_c: Color = Color(0, 0, 0, 0)) -> void:
+		for side in [-1.0, 1.0]:
+			var p: Vector3 = pos + Vector3(side * r * 1.2, 0, 0)
+			if glow_c.a > 0.0:
+				_add(parent, _sphere(r * 0.8), Style.glow(glow_c, 2.0), p)
+			else:
+				_add(parent, _sphere(r), Style.toon(Style.EYE_WHITE, 0, 0.3, false), p)
+				_add(parent, _sphere(r * 0.5), Style.toon(Style.EYE_DARK, 0, 0.2, false), p + Vector3(0, 0, r * 0.6))
+			_add(parent, _box(Vector3(r * 1.6, r * 0.35, r * 0.4)), Style.toon(Color(0.1, 0.06, 0.04), 0, 0.5, false), p + Vector3(0, r * 1.05, r * 0.4), Vector3(0, 0, side * 25.0))
+	match id:
+		"goblin":
+			var skin := Style.toon(Color(0.45, 0.65, 0.25), 0, 0.6)
+			_add(root, _capsule(0.28, 0.75), Style.toon(Color(0.45, 0.3, 0.18), 0, 0.8), Vector3(0, 0.4, 0))
+			_add(root, _sphere(0.3), skin, Vector3(0, 0.95, 0.02))
+			for side in [-1.0, 1.0]:
+				_add(root, _cyl(0.0, 0.1, 0.35), skin, Vector3(side * 0.38, 1.0, 0), Vector3(0, 0, -side * 70.0))   # big ears
+			eye.call(root, Vector3(0, 1.0, 0.24), 0.07)
+			_add(root, _cyl(0.04, 0.06, 0.8), Style.toon(Color(0.4, 0.28, 0.15), 0, 0.9), Vector3(0.32, 0.55, 0.15), Vector3(20, 0, -15))   # club
+			_add(root, _sphere(0.12), Style.toon(Color(0.4, 0.28, 0.15), 0, 0.9), Vector3(0.38, 0.92, 0.28))
+		"toad":
+			var skin := Style.toon(Color(0.35, 0.55, 0.3), 0, 0.5)
+			_add(root, _sphere(0.55), skin, Vector3(0, 0.45, 0), Vector3.ZERO, Vector3(1.2, 0.8, 1.1))
+			_add(root, _sphere(0.42), Style.toon(Color(0.85, 0.85, 0.6), 0, 0.6), Vector3(0, 0.38, 0.25), Vector3.ZERO, Vector3(1.0, 0.7, 0.8))
+			for side in [-1.0, 1.0]:
+				_add(root, _sphere(0.18), skin, Vector3(side * 0.3, 0.85, 0.2))
+			eye.call(root, Vector3(0, 0.9, 0.3), 0.1)
+			_add(root, _box(Vector3(0.6, 0.04, 0.05)), Style.toon(Color(0.15, 0.1, 0.1), 0, 0.5, false), Vector3(0, 0.6, 0.55))
+			for i in 4:
+				_add(root, _sphere(0.07), Style.toon(Color(0.25, 0.4, 0.2), 0, 0.6, false), Vector3(-0.35 + i * 0.22, 0.75, -0.2 + (i % 2) * 0.2))
+		"imp":
+			var skin := Style.toon(Color(0.8, 0.22, 0.12), 0, 0.5)
+			_add(root, _capsule(0.25, 0.7), skin, Vector3(0, 0.5, 0))
+			_add(root, _sphere(0.28), skin, Vector3(0, 1.0, 0.03))
+			for side in [-1.0, 1.0]:
+				_add(root, _cyl(0.0, 0.07, 0.3), Style.toon(Color(0.15, 0.1, 0.1), 0, 0.5), Vector3(side * 0.18, 1.3, 0), Vector3(0, 0, -side * 20.0))
+				_add(root, _box(Vector3(0.4, 0.3, 0.02)), Style.toon(Color(0.5, 0.1, 0.1), 0, 0.7), Vector3(side * 0.35, 0.8, -0.15), Vector3(0, side * 25.0, side * 25.0))
+			eye.call(root, Vector3(0, 1.02, 0.24), 0.07, Color(1.0, 0.85, 0.2))
+			_add(root, _sphere(0.14), Style.glow(Color(1.0, 0.55, 0.1), 2.5), Vector3(0.35, 0.75, 0.2))   # a fireball in hand
+		"yeti":
+			var fur := Style.toon(Color(0.93, 0.95, 1.0), 0, 0.8)
+			_add(root, _sphere(0.55), fur, Vector3(0, 0.65, 0), Vector3.ZERO, Vector3(1.0, 1.15, 0.9))
+			_add(root, _sphere(0.3), fur, Vector3(0, 1.35, 0.05))
+			_add(root, _sphere(0.2), Style.toon(Color(0.55, 0.65, 0.8), 0, 0.6), Vector3(0, 1.3, 0.22), Vector3.ZERO, Vector3(1.2, 1, 0.6))
+			eye.call(root, Vector3(0, 1.4, 0.27), 0.06)
+			for side in [-1.0, 1.0]:
+				_add(root, _capsule(0.15, 0.7), fur, Vector3(side * 0.6, 0.55, 0.1), Vector3(0, 0, side * 15.0))
+				_add(root, _cyl(0.0, 0.05, 0.15), Style.toon(Color.WHITE, 0, 0.3, false), Vector3(side * 0.08, 1.18, 0.33), Vector3(180, 0, 0))   # fangs
+		"scorpion":
+			var shell := Style.toon(Color(0.55, 0.35, 0.15), 0.2, 0.4)
+			_add(root, _sphere(0.4), shell, Vector3(0, 0.35, 0), Vector3.ZERO, Vector3(1.0, 0.6, 1.3))
+			var tail := Vector3(0, 0.4, -0.45)
+			for i in 5:
+				tail += Vector3(0, 0.16, 0.02 + i * 0.05)
+				_add(root, _sphere(0.13 - i * 0.012), shell, tail)
+			_add(root, _cyl(0.0, 0.07, 0.25), Style.toon(Color(0.2, 0.1, 0.05), 0, 0.4), tail + Vector3(0, 0, 0.18), Vector3(80, 0, 0))
+			for side in [-1.0, 1.0]:
+				_add(root, _sphere(0.15), shell, Vector3(side * 0.42, 0.3, 0.55), Vector3.ZERO, Vector3(1, 0.6, 1.4))   # claws
+				for k in 3:
+					_add(root, _cyl(0.02, 0.03, 0.35), shell, Vector3(side * 0.38, 0.15, -0.2 + k * 0.18), Vector3(0, 0, side * 60.0))
+			eye.call(root, Vector3(0, 0.55, 0.45), 0.06)
+		"gummy":
+			var gum := Style.toon(Color(1.0, 0.25, 0.35, 1.0), 0.1, 0.2)
+			_add(root, _sphere(0.45), gum, Vector3(0, 0.5, 0), Vector3.ZERO, Vector3(1, 1.1, 0.9))
+			_add(root, _sphere(0.33), gum, Vector3(0, 1.15, 0))
+			for side in [-1.0, 1.0]:
+				_add(root, _sphere(0.12), gum, Vector3(side * 0.24, 1.42, 0))
+				_add(root, _sphere(0.15), gum, Vector3(side * 0.42, 0.65, 0.1))
+				_add(root, _sphere(0.17), gum, Vector3(side * 0.2, 0.12, 0.05))
+			eye.call(root, Vector3(0, 1.2, 0.27), 0.07)
+			_add(root, _sphere(0.1), Style.toon(Color(0.6, 0.1, 0.15), 0, 0.3, false), Vector3(0, 1.08, 0.3))
+		"shroom":
+			_add(root, _cyl(0.25, 0.32, 0.8), Style.toon(Color(0.92, 0.9, 0.82), 0, 0.6), Vector3(0, 0.4, 0))
+			var cap := SphereMesh.new()
+			cap.radius = 0.6
+			cap.height = 0.6
+			cap.is_hemisphere = true
+			_add(root, cap, Style.glow(Color(0.75, 0.4, 1.0), 1.2), Vector3(0, 0.75, 0))
+			for i in 5:
+				var a := TAU * i / 5.0
+				_add(root, _sphere(0.08), Style.toon(Color.WHITE, 0, 0.5, false), Vector3(cos(a) * 0.38, 1.05, sin(a) * 0.38))
+			eye.call(root, Vector3(0, 0.55, 0.27), 0.07)
 
 
 ## The Shieldbearer (pawn): small brave soldier with a helmet and round shield.

@@ -24,6 +24,14 @@ const TEAMS := {
 		"rune": Color(0.80, 0.45, 1.0),
 		"ui": Color(0.72, 0.45, 1.0),
 	},
+	2: {   # neutral monsters of the world
+		"metal": Color(0.55, 0.5, 0.4),
+		"cloth": Color(0.35, 0.5, 0.25),
+		"accent": Color(0.9, 0.6, 0.2),
+		"dragon": Color(0.5, 0.5, 0.5),
+		"rune": Color(1.0, 0.6, 0.2),
+		"ui": Color(0.95, 0.55, 0.2),
+	},
 }
 
 const SKIN := Color(0.96, 0.70, 0.55)

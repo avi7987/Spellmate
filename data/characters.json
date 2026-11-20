@@ -370,6 +370,27 @@
 			"hit": "Hit_A",
 			"death": "Death_A",
 			"victory": "Cheer"
+		},
+		"goblin": {
+			"scale": 0.85
+		},
+		"toad": {
+			"scale": 0.85
+		},
+		"imp": {
+			"scale": 0.85
+		},
+		"yeti": {
+			"scale": 0.85
+		},
+		"scorpion": {
+			"scale": 0.85
+		},
+		"gummy": {
+			"scale": 0.85
+		},
+		"shroom": {
+			"scale": 0.85
 		}
 	},
 	"shadow": {
@@ -742,6 +763,27 @@
 			"hit": "Hit_A",
 			"death": "Death_A",
 			"victory": "Cheer"
+		},
+		"goblin": {
+			"scale": 0.85
+		},
+		"toad": {
+			"scale": 0.85
+		},
+		"imp": {
+			"scale": 0.85
+		},
+		"yeti": {
+			"scale": 0.85
+		},
+		"scorpion": {
+			"scale": 0.85
+		},
+		"gummy": {
+			"scale": 0.85
+		},
+		"shroom": {
+			"scale": 0.85
 		}
 	}
 }

@@ -205,6 +205,8 @@ func apply_battle(result: Dictionary, rng: RandomNumberGenerator = null) -> Dict
 	var g := int(rng.randi_range(int(r["gold"][0]), int(r["gold"][1])) * k)
 	if result.get("quit", false):
 		g = 0
+	else:
+		g += int(result.get("bonus_gold", 0))
 	var tr := int(r["trophies"])
 	gold += g
 	var before := trophies

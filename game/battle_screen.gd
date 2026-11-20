@@ -54,9 +54,9 @@ var _talk_cooldown := 0.0
 var _turns_done := 0
 
 
-func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}) -> void:
+func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}, biome: String = "meadow") -> void:
 	_size = size
-	battle = Battle.create(size, [deck, ai_deck], [levels, ai_levels], randi() % 1000)
+	battle = Battle.create(size, [deck, ai_deck], [levels, ai_levels], randi() % 1000, biome)
 	ai = BattleAI.new(1, ai_level)
 	view = BattleView.new()
 	view.camera_rig = camera_rig
@@ -95,7 +95,7 @@ func _begin_plan() -> void:
 	phase = Phase.PLAN
 	speed = 1.0
 	hud.set_phase(phase, turn, 0.0)
-	hud.set_hint("שלב התכנון: בחרו גיבורים, לחצן ימני כדי לשלוח, קלפים וכוחות - ואז 'בצע!'", 0.0)
+	hud.set_hint("בחרו גיבורים ושלחו אותם בלחצן ימני, הוסיפו קלפים וכוחות, ואז לחצו על 'בצע!'", 0.0)
 	Music.play("plan")
 
 
@@ -295,7 +295,7 @@ func _react(events: Array) -> void:
 				elif e["kind"] != "wall":
 					Sfx.play("poof", 0.5)
 					if battle.card_cost(e["kind"]) >= 6:
-						_maybe_scene(e["pos"], "%s נפל!" % HeroTexts.name_of(e["kind"]))
+						_maybe_scene(e["pos"], "נפילת %s!" % HeroTexts.name_of(e["kind"]))
 			"attack":
 				var a := battle.unit(e["id"])
 				if a != null and (a.team == 0 or battle.is_visible(0, a.pos)):
@@ -318,6 +318,16 @@ func _react(events: Array) -> void:
 			"energy":
 				if e["team"] == 0 and e["id"] >= 0:
 					Sfx.play("coin", 0.25)
+			"treasure":
+				Sfx.play("chest")
+				hud.flash("מצאתם אוצר! +4 אנרגיה" if e["team"] == 0 else "האויב מצא אוצר", UiKit.GOLD if e["team"] == 0 else Color(0.8, 0.6, 1.0), 0.8)
+			"treasure_spawn":
+				if e["id"] % 2 == 1:
+					hud.flash("תיבות אוצר הופיעו במפה!", UiKit.GOLD, 0.8)
+					Sfx.play("reward", 0.6)
+			"monster_slain":
+				Sfx.play("fanfare" if e["team"] == 0 else "crash", 0.5)
+				hud.flash("הבסתם את %s! +6 אנרגיה" % BattleData.biomes()["monsters"][e["kind"]]["name"] if e["team"] == 0 else "האויב הביס מפלצת", UiKit.GOLD, 1.0)
 			"upgrade":
 				if e["team"] == 1:
 					hud.flash("האויב שדרג את הארמון", Color(0.8, 0.6, 1.0))
@@ -373,9 +383,10 @@ func _finish(winner: int, quit: bool) -> void:
 	elif winner == 2:
 		hud.flash("תיקו", UiKit.GOLD, 2.0)
 	else:
-		hud.flash("הפסד…", Color(1, 0.45, 0.35), 2.0)
+		hud.flash("הפסד", Color(1, 0.45, 0.35), 2.0)
 		Sfx.play("lose")
-	var result := { "won": won, "draw": winner == 2, "quit": quit, "time": battle.time, "size": _size, "turns": turn }
+	var result := { "won": won, "draw": winner == 2, "quit": quit, "time": battle.time, "size": _size, "turns": turn,
+		"bonus_gold": battle.bonus_gold[0], "world": battle.biome }
 	result.merge(_stats)
 	await get_tree().create_timer(0.3 if quit else 2.8).timeout
 	finished.emit(result)
@@ -432,7 +443,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif phase == Phase.PLAN:
 				_order(event.position)
 			else:
-				hud.flash("פקודות נותנים בשלב התכנון", UiKit.GOLD, 0.7)
+				hud.flash("פקודות נותנים רק בשלב התכנון", UiKit.GOLD, 0.7)
 	elif event is InputEventMouseMotion and _dragging:
 		hud.show_drag_box(Rect2(_drag_from, Vector2.ZERO).expand(event.position))
 
@@ -480,7 +491,7 @@ func _order(screen: Vector2) -> void:
 		Sfx.play("order")
 	else:
 		if t != null and t.kind == "king" and t.team == 1:
-			hud.flash("המלך מוגן! קודם שוברים את השער או מגדל", Color(1, 0.7, 0.4), 1.2)
+			hud.flash("המלך מוגן! קודם צריך לשבור את השער או מגדל", Color(1, 0.7, 0.4), 1.2)
 		var p := view.ground_at_screen(screen)
 		if not battle.in_bounds(p):
 			return
@@ -493,7 +504,7 @@ func _order(screen: Vector2) -> void:
 
 func _on_card(idx: int) -> void:
 	if phase != Phase.PLAN:
-		hud.flash("קלפים מתכננים בשלב התכנון", UiKit.GOLD, 0.7)
+		hud.flash("את הקלפים בוחרים בשלב התכנון", UiKit.GOLD, 0.7)
 		return
 	if idx < 0 or idx >= battle.cards[0].size():
 		return
@@ -507,32 +518,29 @@ func _on_card(idx: int) -> void:
 			Sfx.play("click")
 			return
 	var wait := battle.card_wait(0, idx)
-	if wait < 0.0:
-		hud.flash("%s כבר בקרב" % HeroTexts.name_of(id), UiKit.GOLD, 0.7)
-		return
 	if wait > 0.0:
-		hud.flash("%s יחזור בעוד %d תורות" % [HeroTexts.name_of(id), ceili(wait / TURN_SECONDS)], UiKit.GOLD, 0.8)
+		hud.flash("הקלף %s יהיה מוכן בעוד %d תורות" % [HeroTexts.name_of(id), ceili(wait / TURN_SECONDS)], UiKit.GOLD, 0.8)
 		return
 	if free_energy() < battle.card_cost(id):
-		hud.flash("אין מספיק אנרגיה - צריך כורים במכרות!", Style.CRYSTAL, 0.9)
+		hud.flash("אין מספיק אנרגיה. כורים במכרות מביאים עוד!", Style.CRYSTAL, 0.9)
 		Sfx.play("deny")
 		return
 	if BattleData.is_spell(id):
 		_target_unit = -1
 		_chosen_card = -1 if _chosen_card == idx else idx
 		if _chosen_card >= 0:
-			hud.set_hint("לחצו על המפה כדי לכוון את %s (לחצן ימני = ביטול)" % HeroTexts.name_of(id))
+			hud.set_hint("לחצו על המפה כדי לכוון את %s · לחצן ימני מבטל" % HeroTexts.name_of(id))
 		return
 	# a hero: planned to appear at the gate when the turn starts
 	var spawn: Vector2i = battle.map["palaces"][0]["spawn"]
-	var marker := view.plan_marker(Vector2(spawn), 0.6, Style.team(0)["ui"], "%s יזומן" % HeroTexts.name_of(id))
+	var marker := view.plan_marker(Vector2(spawn), 0.6, Style.team(0)["ui"], "זימון: %s" % HeroTexts.name_of(id))
 	plan.append({ "kind": "card", "idx": idx, "pos": Vector2.ZERO, "cost": battle.card_cost(id), "marker": marker })
 	Sfx.play("summon", 0.5)
 
 
 func _on_ability(unit_id: int) -> void:
 	if phase != Phase.PLAN:
-		hud.flash("כוחות מתכננים בשלב התכנון", UiKit.GOLD, 0.7)
+		hud.flash("את הכוחות בוחרים בשלב התכנון", UiKit.GOLD, 0.7)
 		return
 	var u := battle.unit(unit_id)
 	if u == null:
@@ -559,7 +567,7 @@ func _on_ability(unit_id: int) -> void:
 		return
 	_chosen_card = -1
 	_target_unit = unit_id
-	hud.set_hint("%s: לחצו על המטרה (לחצן ימני = ביטול)" % HeroTexts.ability_name(ab["id"]))
+	hud.set_hint("%s: לחצו על המטרה · לחצן ימני מבטל" % HeroTexts.ability_name(ab["id"]))
 
 
 func _add_ability_plan(u: BUnit, pos: Vector2) -> void:
@@ -573,7 +581,7 @@ func _plan_spell_at(p: Vector2) -> void:
 	var idx := _chosen_card
 	var sp := BattleData.spell(battle.cards[0][idx]["id"])
 	if not battle.in_bounds(p) or not battle.is_visible(0, p):
-		hud.flash("אי אפשר להטיל לשם", Color(1, 0.6, 0.4), 0.6)
+		hud.flash("אי אפשר להטיל קסם לשם", Color(1, 0.6, 0.4), 0.6)
 		Sfx.play("deny")
 		return
 	var marker := view.plan_marker(p, float(sp.get("radius", 1.0)), Color(0.75, 0.55, 1.0), HeroTexts.name_of(battle.cards[0][idx]["id"]))
@@ -590,7 +598,7 @@ func _plan_ability_at(p: Vector2) -> void:
 		return
 	var ab := battle.ability_of(u)
 	if u.pos.distance_to(p) > float(ab.get("range", 5)):
-		hud.flash("רחוק מדי - הטווח מסומן בעיגול", Color(1, 0.6, 0.4), 0.8)
+		hud.flash("רחוק מדי. הטווח מסומן בעיגול", Color(1, 0.6, 0.4), 0.8)
 		Sfx.play("deny")
 		return
 	if ab["type"] == "dash" and not battle._passable_for(u, Vector2i(roundi(p.x), roundi(p.y))):

@@ -63,6 +63,7 @@ func setup(b: Battle, p_viewer: int) -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.theme = UiKit.make_theme()
+	_root.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	add_child(_root)
 	_build_cinema()
 	_speech_root = _layer()
@@ -70,7 +71,7 @@ func setup(b: Battle, p_viewer: int) -> void:
 	_build_bottom()
 	_build_info()
 	_build_summary()
-	_hint = UiKit.label("", 20, UiKit.CREAM, 700)
+	_hint = UiKit.label("", 20, UiKit.TEXT, 700)
 	_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_hint.position = Vector2(-450, -196)
 	_hint.size = Vector2(900, 30)
@@ -123,7 +124,7 @@ func _build_top() -> void:
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
 		v.custom_minimum_size = Vector2(230, 0)
-		var name_l := UiKit.label("ממלכת השמש ☀" if team == 0 else "ממלכת האופל ☾", 21, UiKit.INK, 800)
+		var name_l := UiKit.label("ממלכת השמש ☀" if team == 0 else "ממלכת האופל ☾", 21, UiKit.TEXT, 800)
 		v.add_child(name_l)
 		var pb := ProgressBar.new()
 		pb.show_percentage = false
@@ -135,7 +136,7 @@ func _build_top() -> void:
 		fill.set_corner_radius_all(4)
 		pb.add_theme_stylebox_override("fill", fill)
 		v.add_child(pb)
-		var info := UiKit.label("", 15, UiKit.INK_SOFT)
+		var info := UiKit.label("", 15, UiKit.TEXT_SOFT)
 		v.add_child(info)
 		_team_bars.append([team, pb, info])
 		bar.add_child(_strip(v))
@@ -147,9 +148,9 @@ func _build_top() -> void:
 			var center := CenterContainer.new()
 			var turn_box := VBoxContainer.new()
 			turn_box.add_theme_constant_override("separation", 0)
-			_turn_label = UiKit.label("תור 1", 32, UiKit.INK, 800)
+			_turn_label = UiKit.label("תור 1", 32, UiKit.TEXT, 800)
 			turn_box.add_child(_turn_label)
-			_phase_label = UiKit.label("", 17, UiKit.RED_INK, 700)
+			_phase_label = UiKit.label("", 17, UiKit.ACCENT, 700)
 			turn_box.add_child(_phase_label)
 			_phase_bar = ProgressBar.new()
 			_phase_bar.show_percentage = false
@@ -190,18 +191,18 @@ func _build_bottom() -> void:
 	var ev := VBoxContainer.new()
 	ev.alignment = BoxContainer.ALIGNMENT_CENTER
 	ev.add_theme_constant_override("separation", 0)
-	ev.add_child(UiKit.label("אנרגיה ◆", 17, UiKit.INK, 700))
+	ev.add_child(UiKit.label("אנרגיה", 18, UiKit.TEXT, 700))
 	_energy_label = UiKit.label("5", 44, Style.CRYSTAL.darkened(0.35), 700)
-	_energy_label.add_theme_font_override("font", UiKit.FONT_BOLD)
+	_energy_label.add_theme_font_override("font", UiKit.font(700))
 	ev.add_child(_energy_label)
-	_energy_note = UiKit.label("", 14, UiKit.RED_INK)
+	_energy_note = UiKit.label("", 14, UiKit.ACCENT)
 	ev.add_child(_energy_note)
 	_energy_bar = Control.new()
 	_energy_bar.custom_minimum_size = Vector2(110, 12)
 	_energy_bar.draw.connect(_draw_energy)
 	ev.add_child(_energy_bar)
 	var ep := _strip(ev)
-	ep.tooltip_text = "אנרגיה מגיעה מכורים שחופרים במכרות הקריסטל.\nבה מזמנים גיבורים, מטילים קסמים ומפעילים כוחות."
+	ep.tooltip_text = "אנרגיה מגיעה מכורים שחופרים במכרות הקריסטל.\nבעזרתה מזמנים גיבורים, מטילים קסמים ומפעילים כוחות."
 	holder.add_child(ep)
 	# cards
 	var row := HBoxContainer.new()
@@ -224,10 +225,10 @@ func _build_bottom() -> void:
 	_abilities.add_theme_constant_override("separation", 4)
 	side.add_child(_abilities)
 	var plan_row := HBoxContainer.new()
-	_plan_label = UiKit.label("", 15, UiKit.CREAM, 700)
+	_plan_label = UiKit.label("", 15, UiKit.TEXT, 700)
 	_plan_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plan_row.add_child(_plan_label)
-	_clear_btn = UiKit.button("בטל תכנון", UiKit.BUTTON_STEEL, 14)
+	_clear_btn = UiKit.button("לבטל הכול", UiKit.BUTTON_STEEL, 14)
 	_clear_btn.custom_minimum_size = Vector2(96, 34)
 	_clear_btn.pressed.connect(func(): clear_plan_pressed.emit())
 	plan_row.add_child(_clear_btn)
@@ -249,7 +250,7 @@ func _build_bottom() -> void:
 	var act := Control.new()
 	act.custom_minimum_size = Vector2(136, 150)
 	_execute = UiKit.seal_button("בצע!", 132, 34)
-	_execute.tooltip_text = "שני הצדדים מבצעים את המהלכים יחד (רווח / Enter)"
+	_execute.tooltip_text = "שני הצדדים מבצעים את המהלכים יחד (רווח או Enter)"
 	_execute.position = Vector2(2, 8)
 	_execute.pressed.connect(func(): execute_pressed.emit())
 	act.add_child(_execute)
@@ -262,7 +263,7 @@ func _build_bottom() -> void:
 	_action_box.add_child(_speed_btn)
 	var skip := UiKit.button("⏭ דלג", UiKit.BUTTON_BRONZE, 18)
 	skip.custom_minimum_size = Vector2(128, 50)
-	skip.tooltip_text = "לראות מיד את סוף התור (רווח)"
+	skip.tooltip_text = "לדלג ישר לסוף התור (רווח)"
 	skip.pressed.connect(func(): skip_pressed.emit())
 	_action_box.add_child(skip)
 	_action_box.visible = false
@@ -313,13 +314,13 @@ func show_unit_info(u: BUnit) -> void:
 	head.add_child(pic)
 	var nv := VBoxContainer.new()
 	nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var nm := UiKit.label(HeroTexts.name_of(u.kind) if not u.structure else {"gate": "שער", "tower": "מגדל", "wall": "חומת מגן"}.get(u.kind, ""), 24, UiKit.INK, 800)
+	var nm := UiKit.label(HeroTexts.name_of(u.kind) if not u.structure else {"gate": "שער", "tower": "מגדל", "wall": "חומת מגן"}.get(u.kind, ""), 24, UiKit.TEXT, 800)
 	nv.add_child(nm)
-	nv.add_child(UiKit.label("ממלכת השמש" if u.team == 0 else "ממלכת האופל ⚠ אויב", 14, UiKit.RED_INK if u.team == 1 else UiKit.INK_SOFT))
+	nv.add_child(UiKit.label("ממלכת השמש" if u.team == 0 else "אויב · ממלכת האופל", 14, UiKit.ACCENT if u.team == 1 else UiKit.TEXT_SOFT))
 	head.add_child(nv)
 	_info_box.add_child(head)
 	if not u.structure:
-		var role := UiKit.label(HeroTexts.role_of(u.kind), 15, UiKit.INK)
+		var role := UiKit.label(HeroTexts.role_of(u.kind), 15, UiKit.TEXT)
 		role.custom_minimum_size = Vector2(230, 0)
 		role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info_box.add_child(role)
@@ -328,34 +329,34 @@ func show_unit_info(u: BUnit) -> void:
 	stats.add_theme_constant_override("h_separation", 12)
 	var rows := [["❤ חיים", "%d / %d" % [int(u.hp), int(u.max_hp)]]]
 	if u.heal > 0.0:
-		rows.append(["✚ ריפוי", "%d כל %.1f שנ׳" % [int(u.heal), u.rate]])
+		rows.append(["✚ ריפוי", "%d בכל פעם" % int(u.heal)])
 	elif u.dmg > 0.0:
-		rows.append(["⚔ נזק", "%d כל %.1f שנ׳" % [int(u.dmg * battle._level_mult(u)), u.rate]])
+		rows.append(["⚔ נזק", "%d בכל מכה" % int(u.dmg * battle._level_mult(u))])
 	if u.range_ > 0.0 and u.dmg + u.heal > 0.0:
-		rows.append(["➶ טווח", "%.0f משבצות" % u.range_ if u.range_ >= 2.0 else "קרוב (צמוד)"])
+		rows.append(["➶ טווח", ("%d משבצות" % roundi(u.range_)) if u.range_ >= 2.0 else "צמוד"])
 	if u.speed > 0.0:
-		rows.append(["👣 מהירות", "%.1f משבצות בשנייה" % u.speed])
+		rows.append(["👣 מהירות", "איטי" if u.speed < 1.0 else ("רגיל" if u.speed < 2.0 else "מהיר")])
 	if u.level > 1:
 		rows.append(["★ דרגה", str(u.level)])
 	for r in rows:
-		var a := UiKit.label(r[0], 15, UiKit.INK_SOFT, 700)
+		var a := UiKit.label(r[0], 15, UiKit.TEXT_SOFT, 700)
 		a.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		a.autowrap_mode = TextServer.AUTOWRAP_OFF
 		stats.add_child(a)
-		var b := UiKit.label(r[1], 15, UiKit.INK)
+		var b := UiKit.label(r[1], 15, UiKit.TEXT)
 		b.autowrap_mode = TextServer.AUTOWRAP_OFF
 		b.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		stats.add_child(b)
 	_info_box.add_child(stats)
 	var ab := battle.ability_of(u)
 	if not ab.is_empty():
-		_info_box.add_child(UiKit.label("✦ " + HeroTexts.ability_name(ab["id"]) + "  (◆%d)" % int(ab.get("cost", 0)), 16, UiKit.RED_INK, 700))
-		var d := UiKit.label(HeroTexts.ability_desc(ab["id"]), 14, UiKit.INK)
+		_info_box.add_child(UiKit.label("✦ " + HeroTexts.ability_name(ab["id"]) + "  (◆%d)" % int(ab.get("cost", 0)), 16, UiKit.ACCENT, 700))
+		var d := UiKit.label(HeroTexts.ability_desc(ab["id"]), 14, UiKit.TEXT)
 		d.custom_minimum_size = Vector2(230, 0)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info_box.add_child(d)
 	if u.kind == "king":
-		_info_box.add_child(UiKit.label(("מוגן מאחורי החומות" if not battle.king_exposed(u.team) else "חשוף! אפשר לתקוף אותו"), 15, UiKit.RED_INK, 700))
+		_info_box.add_child(UiKit.label(("מוגן מאחורי החומות" if not battle.king_exposed(u.team) else "חשוף! אפשר לתקוף אותו"), 15, UiKit.ACCENT, 700))
 
 
 # ------------------------------------------------------------------ summary & cinema
@@ -378,18 +379,18 @@ func show_turn_summary(n: int, s: Dictionary, b: Battle) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 1)
 	_summary.add_child(v)
-	v.add_child(UiKit.label("סיכום תור %d" % n, 22, UiKit.INK, 800))
+	v.add_child(UiKit.label("סיכום תור %d" % n, 22, UiKit.TEXT, 800))
 	var lines := []
 	if s.get("kills", 0) > 0:
-		lines.append(["⚔ הפלתם %d אויבים" % s["kills"], UiKit.INK])
+		lines.append([("⚔ הפלתם אויב אחד" if s["kills"] == 1 else "⚔ הפלתם %d אויבים" % s["kills"]), UiKit.TEXT])
 	if s.get("lost", 0) > 0:
-		lines.append(["✝ איבדתם %d גיבורים" % s["lost"], UiKit.RED_INK])
-	lines.append(["◆ +%d אנרגיה מהכורים" % int(s.get("energy", 0)), Style.CRYSTAL.darkened(0.45)])
-	lines.append(["נזק שגרמתם: %d" % int(s.get("damage_done", 0)), UiKit.INK])
-	lines.append(["נזק שספגתם: %d" % int(s.get("damage_taken", 0)), UiKit.INK_SOFT])
+		lines.append([("איבדתם גיבור אחד" if s["lost"] == 1 else "איבדתם %d גיבורים" % s["lost"]), UiKit.ACCENT])
+	lines.append(["◆ +%d אנרגיה" % int(s.get("energy", 0)), Style.CRYSTAL])
+	lines.append(["נזק שגרמתם: %d" % int(s.get("damage_done", 0)), UiKit.TEXT])
+	lines.append(["נזק שספגתם: %d" % int(s.get("damage_taken", 0)), UiKit.TEXT_SOFT])
 	for st in s.get("structures", []):
 		var what: String = "מגדל" if st[0] == "tower" else "שער"
-		lines.append([("%s של האויב נפל!" % what) if st[1] == 1 else ("%s שלנו נפל!" % what), UiKit.RED_INK])
+		lines.append([("%s של האויב נפל!" % what) if st[1] == 1 else ("%s שלנו נפל!" % what), UiKit.ACCENT])
 	for l in lines:
 		var lab := UiKit.label(l[0], 16, l[1], 700)
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -496,12 +497,12 @@ func refresh(bs: BattleScreen) -> void:
 	var e: float = battle.energy[viewer]
 	var free := bs.free_energy()
 	_energy_label.text = str(int(free))
-	_energy_note.text = ("%d מתוכננים" % int(e - free)) if e - free > 0.0 else ""
+	_energy_note.text = ("%d שמורים לתכנון" % int(e - free)) if e - free > 0.0 else ""
 	_energy_bar.queue_redraw()
 	_turn_label.text = "תור %d" % bs.turn
 	match bs.phase:
 		BattleScreen.Phase.PLAN:
-			_phase_label.text = "✎ שלב התכנון - הזמן עומד"
+			_phase_label.text = "תכנון · הזמן עוצר"
 			_phase_bar.value = 0.0
 		BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE:
 			_phase_label.text = "⚔ פעולה!" + (" ×2.5" if bs.speed > 1.0 else "")
@@ -517,10 +518,10 @@ func refresh(bs: BattleScreen) -> void:
 		c.set_state(wait, free >= battle.card_cost(c.card_id) or bs.is_planned_card(i), bs.is_planned_card(i) or i == bs._chosen_card, BattleScreen.TURN_SECONDS)
 	var cost := battle.palace_upgrade_cost(viewer)
 	if cost < 0:
-		_upgrade.text = "ארמון בדרגה מרבית"
+		_upgrade.text = "הארמון בדרגה המקסימלית"
 		_upgrade.disabled = true
 	else:
-		_upgrade.text = "שדרוג ארמון  ◆%d" % cost
+		_upgrade.text = "לשדרג ארמון · %d" % cost
 		_upgrade.disabled = free < cost or not planning
 	var n_cards := bs.plan.filter(func(p): return p["kind"] == "card").size()
 	var n_pow := bs.plan.size() - n_cards
@@ -627,9 +628,9 @@ func speech(screen_pos: Vector2, text: String) -> void:
 	p.add_theme_stylebox_override("panel", UiKit.strip_style())
 	var l := Label.new()
 	l.text = text
-	l.add_theme_color_override("font_color", UiKit.INK)
+	l.add_theme_color_override("font_color", UiKit.TEXT)
 	l.add_theme_font_size_override("font_size", 18)
-	l.add_theme_font_override("font", UiKit.FONT_BOLD)
+	l.add_theme_font_override("font", UiKit.font(700))
 	p.add_child(l)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_speech_root.add_child(p)

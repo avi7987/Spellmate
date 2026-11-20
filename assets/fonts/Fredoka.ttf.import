@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bnufqbrrw1jbm"
-path="res://.godot/imported/DavidLibre-Medium.ttf-9dc2bf4b953faf0f5a562386cdad1051.fontdata"
+uid="uid://81jb8n1gh42s"
+path="res://.godot/imported/Fredoka.ttf-38db4f924b441151c6642ef65fe93e1f.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/DavidLibre-Medium.ttf"
-dest_files=["res://.godot/imported/DavidLibre-Medium.ttf-9dc2bf4b953faf0f5a562386cdad1051.fontdata"]
+source_file="res://assets/fonts/Fredoka.ttf"
+dest_files=["res://.godot/imported/Fredoka.ttf-38db4f924b441151c6642ef65fe93e1f.fontdata"]
 
 [params]
 

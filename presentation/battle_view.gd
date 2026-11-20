@@ -5,7 +5,7 @@ extends Node3D
 ## It only READS the Battle; orders go through game/battle_main.gd.
 
 const ENV_DIR := "res://assets/environment/kaykit/"
-const PERCENT_FONT := preload("res://assets/fonts/SuezOne.ttf")
+var PERCENT_FONT: Font = UiKit.font(700)
 
 var battle: Battle
 var viewer := 0
@@ -35,7 +35,8 @@ func setup(b: Battle, p_viewer: int) -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(220, 220)
 	ground.mesh = plane
-	ground.material_override = Style.matte(Style.GRASS.darkened(0.25))
+	var rim := Color.html(b.world.get("colors", {}).get("rim", "#2b3d22"))
+	ground.material_override = Style.matte(rim)
 	ground.position = Vector3(0, -0.4, 0)
 	add_child(ground)
 	var frame := MeshInstance3D.new()
@@ -47,8 +48,9 @@ func setup(b: Battle, p_viewer: int) -> void:
 	add_child(frame)
 	_terrain_view = TerrainView.new()
 	add_child(_terrain_view)
-	_terrain_view.build(b.map["terrain"], _w, _h)
+	_terrain_view.build(b.map["terrain"], _w, _h, b.world)
 	_scenery()
+	_shrines()
 	_units_root = Node3D.new()
 	add_child(_units_root)
 	_fx_root = Node3D.new()
@@ -206,12 +208,13 @@ func plan_marker(pos: Vector2, radius: float, color: Color, text: String) -> Nod
 	disc.material_override = Style.overlay(Color(color.r, color.g, color.b, 0.18))
 	root.add_child(disc)
 	var l := Label3D.new()
+	l.text_direction = TextServer.DIRECTION_RTL
 	l.text = text
-	l.font = UiKit.FONT_BOLD
+	l.font = UiKit.font(700)
 	l.font_size = 46
 	l.outline_size = 12
 	l.outline_modulate = UiKit.OUTLINE
-	l.modulate = UiKit.CREAM
+	l.modulate = UiKit.TEXT
 	l.pixel_size = 0.008
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
@@ -350,6 +353,85 @@ func _scenery() -> void:
 				add_child(n)
 
 
+# ------------------------------------------------------------------ world things
+
+var _treasures: Dictionary = {}
+
+
+## Shrines: a healing spring (glowing basin), a power stone (red rune) and a
+## magic well (a ring of stones with a floating crystal).
+func _shrines() -> void:
+	var stone := Style.toon(Color(0.55, 0.53, 0.5), 0.0, 0.9)
+	for sh in battle.map.get("shrines", []):
+		var root := Node3D.new()
+		root.position = to_world(Vector2(sh["pos"]))
+		add_child(root)
+		match sh["type"]:
+			"heal":
+				_part(root, _cyl_mesh(0.42, 0.48, 0.2), stone, Vector3(0, 0.1, 0))
+				_part(root, _cyl_mesh(0.34, 0.34, 0.04), Style.glow(Color(0.45, 1.0, 0.6), 1.6), Vector3(0, 0.21, 0))
+			"power":
+				_part(root, _box_mesh(Vector3(0.35, 0.9, 0.25)), stone, Vector3(0, 0.45, 0), Vector3(0, 0, 4))
+				_part(root, _box_mesh(Vector3(0.14, 0.3, 0.02)), Style.glow(Color(1.0, 0.3, 0.2), 2.2), Vector3(0, 0.55, 0.13))
+			"energy":
+				for i in 6:
+					var a := TAU * i / 6.0
+					_part(root, _box_mesh(Vector3(0.14, 0.25, 0.14)), stone, Vector3(cos(a) * 0.38, 0.12, sin(a) * 0.38))
+				var crystal := _part(root, _cyl_mesh(0.0, 0.14, 0.4), Style.glow(Style.CRYSTAL, 2.4), Vector3(0, 0.75, 0))
+				crystal.create_tween().set_loops().tween_property(crystal, "rotation_degrees:y", 360.0, 3.0).from(0.0)
+		var ring := MeshInstance3D.new()
+		var t := TorusMesh.new()
+		t.inner_radius = 0.95
+		t.outer_radius = 1.0
+		ring.mesh = t
+		var r := float(BattleData.biomes()["shrines"][sh["type"]].get("radius", 1.6))
+		ring.scale = Vector3(r, 0.3, r)
+		ring.position.y = 0.06
+		ring.material_override = Style.glow({"heal": Color(0.45, 1, 0.6), "power": Color(1, 0.35, 0.25), "energy": Style.CRYSTAL}[sh["type"]], 0.8)
+		root.add_child(ring)
+
+
+func _part(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation_degrees = rot
+	parent.add_child(mi)
+	return mi
+
+
+func _cyl_mesh(top: float, bottom: float, h: float) -> CylinderMesh:
+	var c := CylinderMesh.new()
+	c.top_radius = top
+	c.bottom_radius = bottom
+	c.height = h
+	c.radial_segments = 12
+	return c
+
+
+func _box_mesh(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
+func _add_treasure(id: int, pos: Vector2) -> void:
+	var path := "res://assets/props/chest_gold.glb"
+	if not ResourceLoader.exists(path):
+		return
+	var n := (load(path) as PackedScene).instantiate() as Node3D
+	n.position = to_world(pos)
+	n.scale = Vector3.ONE * 0.01
+	add_child(n)
+	_treasures[id] = n
+	n.create_tween().tween_property(n, "scale", Vector3.ONE * 0.75, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var bob := n.create_tween().set_loops()
+	bob.tween_property(n, "rotation_degrees:y", 15.0, 0.8)
+	bob.tween_property(n, "rotation_degrees:y", -15.0, 0.8)
+	Effects.pillar(_fx_root, n.position, UiKit.GOLD, 3.0, 0.8)
+
+
 # ------------------------------------------------------------------ events
 
 func play_events(events: Array) -> void:
@@ -387,7 +469,25 @@ func play_events(events: Array) -> void:
 			"spell":
 				_area_fx(e["card"], e["pos"], e["radius"], e["pos"])
 			"breach":
-				_terrain_view.build(battle.map["terrain"], _w, _h)
+				_terrain_view.build(battle.map["terrain"], _w, _h, battle.world)
+			"treasure_spawn":
+				_add_treasure(e["id"], e["pos"])
+			"treasure":
+				var n = _treasures.get(e["id"], null)
+				_treasures.erase(e["id"])
+				if n != null:
+					Effects.burst(_fx_root, n.position + Vector3(0, 0.5, 0), UiKit.GOLD, 30, 2.5)
+					_float_text(n.position, "+%d ◆" % int(BattleData.biomes()["treasure"]["energy"]), Style.CRYSTAL, 1.0)
+					var tw: Tween = n.create_tween()
+					tw.tween_property(n, "scale", Vector3.ONE * 0.01, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+					tw.tween_callback(n.queue_free)
+			"shrine":
+				Effects.burst(_fx_root, to_world(e["pos"]) + Vector3(0, 1.0, 0), Style.CRYSTAL, 10, 1.4, 0.05)
+				if e["team"] == viewer:
+					_float_text(to_world(e["pos"]), "+1 ◆", Style.CRYSTAL, 0.8)
+			"monster_slain":
+				Effects.pillar(_fx_root, to_world(e["pos"]), UiKit.GOLD, 4.0, 0.9)
+				_float_text(to_world(e["pos"]), "+%d ◆" % int(BattleData.biomes()["monster_reward"]["energy"]), Style.CRYSTAL, 1.2)
 			"upgrade":
 				for u: BUnit in battle.units:
 					if u.team == e["team"] and (u.kind == "tower" or u.kind == "gate") and _views.has(u.id):
@@ -520,6 +620,7 @@ func _fx_color(id: String, effect: String, kind: String) -> Color:
 
 func _float_text(pos: Vector3, text: String, color: Color, scale_k: float = 1.0) -> void:
 	var l := Label3D.new()
+	l.text_direction = TextServer.DIRECTION_RTL
 	l.text = text
 	l.font = PERCENT_FONT
 	l.font_size = int(64 * scale_k)

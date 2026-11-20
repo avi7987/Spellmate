@@ -9,6 +9,7 @@ signal closed
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	theme = UiKit.make_theme()
+	layout_direction = Control.LAYOUT_DIRECTION_RTL
 
 
 func show_results(result: Dictionary, rewards: Dictionary, profile: Profile) -> void:
@@ -26,10 +27,10 @@ func show_results(result: Dictionary, rewards: Dictionary, profile: Profile) -> 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
-	var title := "ניצחון!" if won else ("תיקו" if result.get("draw", false) else ("ברחת מהקרב" if result.get("quit", false) else "הפסד…"))
+	var title := "ניצחון!" if won else ("תיקו" if result.get("draw", false) else ("יצאתם מהקרב" if result.get("quit", false) else "הפסד"))
 	v.add_child(UiKit.title(title, 54, UiKit.GOLD if won else Color(1, 0.55, 0.45)))
 	var m := int(result.get("time", 0))
-	v.add_child(UiKit.label("זמן קרב %d:%02d · אויבים שהופלו %d · מבנים שנשברו %d" % [m / 60, m % 60, int(result.get("kills", 0)), int(result.get("structures", 0))], 17, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("%d תורות · הפלתם %d אויבים · שברתם %d מבנים" % [int(result.get("turns", m / 5)), int(result.get("kills", 0)), int(result.get("structures", 0))], 18, UiKit.TEXT_SOFT))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 30)
@@ -39,7 +40,7 @@ func show_results(result: Dictionary, rewards: Dictionary, profile: Profile) -> 
 	var rows := [
 		["🪙 זהב", "+%d" % int(rewards.get("gold", 0)), UiKit.GOLD],
 		["🏆 גביעים", "%+d  (סה״כ %d)" % [int(rewards.get("trophies", 0)), profile.trophies], Color(1, 0.85, 0.5)],
-		["⭐ ניסיון לכל גיבור בחפיסה", "+%d" % int(rewards.get("xp", 0)), Color(0.6, 0.9, 1.0)],
+		["⭐ ניסיון לגיבורי החפיסה", "+%d" % int(rewards.get("xp", 0)), Color(0.6, 0.9, 1.0)],
 	]
 	for r in rows:
 		var a := UiKit.label(r[0], 22, UiKit.TEXT, 700)
@@ -52,10 +53,10 @@ func show_results(result: Dictionary, rewards: Dictionary, profile: Profile) -> 
 		grid.add_child(b)
 		b.create_tween().tween_property(b, "modulate:a", 1.0, 0.4).set_delay(0.3 + rows.find(r) * 0.35)
 	if rewards.get("chest", "") != "":
-		v.add_child(UiKit.label("🎁 קיבלתם תיבת %s! פתחו אותה בכפר" % ChestNames.name_of(rewards["chest"]), 22, UiKit.RED_INK, 700))
+		v.add_child(UiKit.label("🎁 קיבלתם תיבת %s! פתחו אותה בכפר" % ChestNames.name_of(rewards["chest"]), 22, UiKit.ACCENT, 700))
 	if rewards.get("new_arena", false):
-		v.add_child(UiKit.title("עלית לזירה חדשה: %s!" % profile.arena()["name"], 30))
-	var b := UiKit.button("חזרה לבסיס", UiKit.BUTTON_BRONZE, 26)
+		v.add_child(UiKit.title("עליתם לזירה חדשה: %s!" % profile.arena()["name"], 30))
+	var b := UiKit.button("חזרה לכפר", UiKit.BUTTON_BRONZE, 26)
 	b.pressed.connect(func():
 		Sfx.play("click")
 		closed.emit())

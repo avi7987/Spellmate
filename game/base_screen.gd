@@ -184,15 +184,16 @@ func _rebuild_buildings() -> void:
 
 func _sign(parent: Node3D, text: String, built: bool, id: String, scale_k: float = 1.0) -> void:
 	var l := Label3D.new()
+	l.text_direction = TextServer.DIRECTION_RTL
 	l.text = text
-	l.font = UiKit.FONT_BOLD
+	l.font = UiKit.font(700)
 	l.font_size = int((44 if built else 48) * scale_k)
 	l.outline_size = 16
 	l.outline_modulate = UiKit.OUTLINE
 	l.pixel_size = 0.01
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
-	l.modulate = UiKit.GOLD if built else UiKit.CREAM
+	l.modulate = UiKit.GOLD if built else UiKit.TEXT
 	l.position = Vector3(0, 4.6 if id == "palace" else 2.6, 0)
 	if built and id in ["palace", "mine"]:
 		l.text = "%s (%d)" % [text, int(profile.buildings[id])]
@@ -235,6 +236,7 @@ func _build_ui() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.theme = UiKit.make_theme()
+	_root.layout_direction = Control.LAYOUT_DIRECTION_RTL
 	_ui.add_child(_root)
 	# top bar
 	var top := HBoxContainer.new()
@@ -248,9 +250,9 @@ func _build_ui() -> void:
 	var logo_box := VBoxContainer.new()
 	logo_box.add_theme_constant_override("separation", -6)
 	var logo := UiKit.title("Spellmate", 40)
-	logo.add_theme_font_override("font", UiKit.FONT_BOLD)
+	logo.add_theme_font_override("font", UiKit.font(700))
 	logo_box.add_child(logo)
-	logo_box.add_child(UiKit.label("ספר הכשפים של הממלכות", 16, UiKit.INK, 800))
+	logo_box.add_child(UiKit.label("קרב הממלכות", 18, UiKit.TEXT_SOFT, 600))
 	var logo_strip := PanelContainer.new()
 	logo_strip.add_theme_stylebox_override("panel", UiKit.strip_style())
 	logo_strip.add_child(logo_box)
@@ -288,28 +290,11 @@ func _build_ui() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom.add_child(spacer)
-	var sizes := VBoxContainer.new()
-	sizes.size_flags_vertical = Control.SIZE_SHRINK_END
-	sizes.add_child(UiKit.label("גודל המפה", 16, UiKit.CREAM, 700))
-	var srow := HBoxContainer.new()
-	for s in [["small", "קטנה"], ["medium", "בינונית"], ["large", "גדולה+ערפל"]]:
-		var b := UiKit.button(s[1], UiKit.BUTTON_STEEL, 16)
-		b.custom_minimum_size = Vector2(96 if s[0] != "large" else 124, 42)
-		b.tooltip_text = {"small": "מפה קטנה: קרב קצר", "medium": "מפה בינונית: יותר מקום לתמרן", "large": "מפה גדולה עם ערפל: רואים רק ליד הגיבורים שלכם"}[s[0]]
-		b.pressed.connect(func():
-			profile.settings["map"] = s[0]
-			Sfx.play("click")
-			_refresh())
-		srow.add_child(b)
-		_size_btns[s[0]] = b
-	sizes.add_child(srow)
-	bottom.add_child(sizes)
 	var fight := UiKit.seal_button("לקרב!", 120, 32)
 	fight.position.y = -40
 	fight.pressed.connect(func():
-		Sfx.play("horn")
-		profile.save()
-		app.start_battle(profile.settings.get("map", "small")))
+		Sfx.play("click")
+		_open(_world_panel()))
 	bottom.add_child(fight)
 	_panel_holder = Control.new()
 	_panel_holder.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -320,7 +305,7 @@ func _build_ui() -> void:
 func _stat_box(parent: Control, color: Color) -> Label:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UiKit.strip_style())
-	var l := UiKit.label("", 24, UiKit.INK, 700)
+	var l := UiKit.label("", 24, UiKit.TEXT, 700)
 	l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	p.add_child(l)
 	parent.add_child(p)
@@ -332,12 +317,7 @@ func _refresh() -> void:
 	var a := profile.arena()
 	_trophies.text = "🏆 %d · %s" % [profile.trophies, a["name"]]
 	_chest_btn.text = "🎁 תיבות (%d)" % profile.chests.size()
-	for s in _size_btns:
-		var on: bool = profile.settings.get("map", "small") == s
-		var b: BookButton = _size_btns[s]
-		b.tint = UiKit.BUTTON_RED if on else UiKit.BUTTON_STEEL
-		b.add_theme_color_override("font_color", UiKit.CREAM if on else UiKit.INK)
-		b.add_theme_constant_override("outline_size", 4 if on else 0)
+
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -415,10 +395,10 @@ func _building_panel(id: String) -> Control:
 	v.add_child(UiKit.label(d[4], 20, UiKit.TEXT))
 	if is_decor:
 		if profile.decorations.has(id):
-			v.add_child(UiKit.label("כבר שלכם! הכפר יפה יותר 🙂", 20, UiKit.INK, 700))
+			v.add_child(UiKit.label("כבר שלכם! הכפר יפה יותר 🙂", 20, UiKit.TEXT, 700))
 		else:
 			var cost := int(Profile.meta()["decorations"][id]["cost"])
-			var b := UiKit.button("קנה  🪙 %d" % cost, UiKit.BUTTON_BRONZE, 22)
+			var b := UiKit.button("לקנות · 🪙 %d" % cost, UiKit.BUTTON_BRONZE, 22)
 			b.disabled = profile.gold < cost
 			b.pressed.connect(func():
 				if profile.buy_decoration(id):
@@ -431,7 +411,7 @@ func _building_panel(id: String) -> Control:
 	var lvl := int(profile.buildings.get(id, 0))
 	var meta_b: Dictionary = Profile.meta()["buildings"][id]
 	var max_l := int(meta_b["max"])
-	v.add_child(UiKit.label("דרגה %d / %d" % [lvl, max_l] if max_l > 1 else ("בנוי ✔" if lvl > 0 else "עוד לא בנוי"), 20, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("דרגה %d מתוך %d" % [lvl, max_l] if max_l > 1 else ("בנוי ✔" if lvl > 0 else "עוד לא בנוי"), 20, UiKit.TEXT_SOFT))
 	var unlocks: Array = meta_b.get("unlocks", [])
 	if not unlocks.is_empty():
 		var row := HBoxContainer.new()
@@ -445,12 +425,12 @@ func _building_panel(id: String) -> Control:
 		v.add_child(row)
 	if lvl < max_l:
 		var need := int(meta_b.get("trophies", 0))
-		var b := UiKit.button(("בנה" if lvl == 0 else "שדרג") + "  🪙 %d" % profile.building_cost(id), UiKit.BUTTON_BRONZE, 22)
+		var b := UiKit.button(("לבנות" if lvl == 0 else "לשדרג") + " · 🪙 %d" % profile.building_cost(id), UiKit.BUTTON_BRONZE, 22)
 		b.disabled = not profile.can_build(id)
 		if profile.trophies < need:
-			v.add_child(UiKit.label("צריך %d גביעים" % need, 18, Color(1, 0.6, 0.4)))
+			v.add_child(UiKit.label("צריך עוד %d גביעים 🏆" % (need - profile.trophies), 18, UiKit.ACCENT))
 		elif profile.gold < profile.building_cost(id):
-			v.add_child(UiKit.label("חסר זהב - נצח בקרבות ופתח תיבות", 18, Color(1, 0.6, 0.4)))
+			v.add_child(UiKit.label("אין מספיק זהב. נצחו בקרבות ופתחו תיבות!", 18, UiKit.ACCENT))
 		b.pressed.connect(func():
 			if profile.build(id):
 				Sfx.play("build")
@@ -464,9 +444,9 @@ func _building_panel(id: String) -> Control:
 # ---------------------------------------------------------------- heroes
 
 func _heroes_panel() -> Control:
-	var f := _frame("הגיבורים שלך", UiKit.GOLD, 900)
+	var f := _frame("הגיבורים שלכם", UiKit.GOLD, 900)
 	var v: VBoxContainer = f[1]
-	v.add_child(UiKit.label("ניסיון ⭐ מגיע מקרבות ומתיבות. עם מספיק ניסיון וזהב משדרגים: כל דרגה = +10% חיים ונזק", 16, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("⭐ ניסיון מקבלים בקרבות ובתיבות. עם מספיק ניסיון וזהב משדרגים גיבור, וכל דרגה מוסיפה לו 10% חיים ונזק.", 16, UiKit.TEXT_SOFT))
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(860, 430)
 	v.add_child(scroll)
@@ -492,8 +472,8 @@ func _heroes_panel() -> Control:
 			box.add_child(UiKit.label("קלף קסם", 14, UiKit.TEXT_SOFT))
 		else:
 			var h: Dictionary = profile.heroes.get(id, { "level": 1, "xp": 0 })
-			box.add_child(UiKit.label("דרגה %d · ⭐ %d/%d" % [int(h["level"]), int(h["xp"]), profile.xp_needed(id)], 15, UiKit.TEXT))
-			var b := UiKit.button("שדרג 🪙%d" % profile.upgrade_cost(id), UiKit.BUTTON_BRONZE, 15)
+			box.add_child(UiKit.label("דרגה %d · ⭐ %d מתוך %d" % [int(h["level"]), int(h["xp"]), profile.xp_needed(id)], 15, UiKit.TEXT))
+			var b := UiKit.button("לשדרג · 🪙 %d" % profile.upgrade_cost(id), UiKit.BUTTON_BRONZE, 15)
 			b.custom_minimum_size = Vector2(0, 40)
 			b.disabled = not profile.can_upgrade(id)
 			b.pressed.connect(func():
@@ -510,16 +490,16 @@ func _heroes_panel() -> Control:
 func _unlock_building(card: String) -> String:
 	for b in Profile.meta()["buildings"]:
 		if card in Profile.meta()["buildings"][b].get("unlocks", []):
-			return "נפתח ב" + BUILDINGS[b][3]
+			return "נפתח כשבונים את " + BUILDINGS[b][3]
 	return ""
 
 
 # ---------------------------------------------------------------- deck
 
 func _deck_panel() -> Control:
-	var f := _frame("החפיסה לקרב (8 קלפים)", UiKit.GOLD, 920)
+	var f := _frame("החפיסה שלכם · 8 קלפים", UiKit.GOLD, 920)
 	var v: VBoxContainer = f[1]
-	v.add_child(UiKit.label("לחץ על מקום בחפיסה ואז על קלף מהאוסף כדי להחליף", 17, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("לחצו על קלף בחפיסה, ואז על קלף מהאוסף כדי להחליף ביניהם", 17, UiKit.TEXT_SOFT))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 8)
@@ -537,7 +517,7 @@ func _deck_panel() -> Control:
 	var cost := 0.0
 	for c in profile.deck:
 		cost += BattleData.card(c).get("cost", 0)
-	v.add_child(UiKit.label("מחיר ממוצע: %.1f ◆ · %s" % [cost / 8.0, "יש כורה ✔" if profile.deck.has("miner") else "⚠ אין כורה בחפיסה!"], 16, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("מחיר ממוצע: %.1f אנרגיה · %s" % [cost / 8.0, "יש כורה ✔" if profile.deck.has("miner") else "⚠ אין כורה בחפיסה!"], 16, UiKit.TEXT_SOFT))
 	v.add_child(UiKit.title("האוסף", 24, UiKit.TEXT))
 	var others := HFlowContainer.new()
 	others.custom_minimum_size = Vector2(880, 0)
@@ -559,7 +539,7 @@ func _deck_panel() -> Control:
 				_reopen(_deck_panel))
 		others.add_child(c)
 	if others.get_child_count() == 0:
-		others.add_child(UiKit.label("כל הקלפים שלך כבר בחפיסה. בנה מבנים בכפר כדי לפתוח עוד!", 17, UiKit.TEXT_SOFT))
+		others.add_child(UiKit.label("כל הקלפים שלכם כבר בחפיסה. בנו מבנים בכפר כדי לפתוח עוד!", 17, UiKit.TEXT_SOFT))
 	return f[0]
 
 
@@ -569,7 +549,7 @@ func _chests_panel() -> Control:
 	var f := _frame("תיבות אוצר", Color(0.8, 0.55, 1.0))
 	var v: VBoxContainer = f[1]
 	if profile.chests.is_empty():
-		v.add_child(UiKit.label("אין תיבות. כל ניצחון נותן תיבה (עד %d מחכות)" % int(Profile.meta()["chest_slots"]), 20, UiKit.TEXT_SOFT))
+		v.add_child(UiKit.label("אין תיבות כרגע. כל ניצחון נותן תיבה (אפשר לשמור עד %d)" % int(Profile.meta()["chest_slots"]), 20, UiKit.TEXT_SOFT))
 		return f[0]
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -577,7 +557,7 @@ func _chests_panel() -> Control:
 	v.add_child(row)
 	for i in profile.chests.size():
 		var type: String = profile.chests[i]
-		var b := UiKit.button("🎁\nתיבת %s\nפתח!" % ChestNames.name_of(type), UiKit.BUTTON_PURPLE, 18)
+		var b := UiKit.button("🎁\nתיבת %s\nלפתוח!" % ChestNames.name_of(type), UiKit.BUTTON_PURPLE, 18)
 		b.custom_minimum_size = Vector2(130, 120)
 		b.add_theme_color_override("font_color", ChestNames.COLORS[type])
 		b.pressed.connect(func(): _open_chest(i))
@@ -647,6 +627,51 @@ func _open_chest(idx: int) -> void:
 		t2.tween_callback(chest.queue_free)
 
 
+# ---------------------------------------------------------------- choose a world
+
+## Before a battle: pick the world (biome) and the map size.
+func _world_panel() -> Control:
+	var f := _frame("איפה נלחמים?", UiKit.GOLD, 1000)
+	var v: VBoxContainer = f[1]
+	var chosen: String = profile.settings.get("world", "meadow")
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	v.add_child(grid)
+	for id in BattleData.biome_ids():
+		var w := BattleData.biome(id)
+		var tile := WorldTile.new()
+		tile.setup(id, w, id == chosen)
+		tile.pressed.connect(func():
+			profile.settings["world"] = id
+			Sfx.play("select")
+			_reopen(_world_panel))
+		grid.add_child(tile)
+	var sizes := HBoxContainer.new()
+	sizes.alignment = BoxContainer.ALIGNMENT_CENTER
+	sizes.add_theme_constant_override("separation", 10)
+	sizes.add_child(UiKit.label("גודל המפה:", 22, UiKit.TEXT, 700))
+	for sz in [["small", "קטנה"], ["medium", "בינונית"], ["large", "גדולה + ערפל"]]:
+		var on: bool = profile.settings.get("map", "small") == sz[0]
+		var b := UiKit.button(sz[1], UiKit.BUTTON_RED if on else UiKit.BUTTON_STEEL, 20)
+		b.custom_minimum_size = Vector2(150, 50)
+		b.pressed.connect(func():
+			profile.settings["map"] = sz[0]
+			Sfx.play("click")
+			_reopen(_world_panel))
+		sizes.add_child(b)
+	v.add_child(sizes)
+	var go := UiKit.button("יוצאים לקרב!", UiKit.BUTTON_RED, 30)
+	go.custom_minimum_size = Vector2(0, 70)
+	go.pressed.connect(func():
+		Sfx.play("horn")
+		profile.save()
+		app.start_battle(profile.settings.get("map", "small"), false, profile.settings.get("world", "meadow")))
+	v.add_child(go)
+	return f[0]
+
+
 # ---------------------------------------------------------------- hero book
 
 ## The hero book: a two-page spread. Right page: the list of heroes and
@@ -709,9 +734,9 @@ func _book_panel(id: String) -> Control:
 	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hv.add_child(UiKit.title(HeroTexts.name_of(id), 40))
 	var d := BattleData.card(id)
-	hv.add_child(UiKit.label("מחיר: ◆%d אנרגיה%s" % [int(d.get("cost", 0)), "  ·  קלף קסם" if BattleData.is_spell(id) else ""], 18, UiKit.INK_SOFT, 700))
+	hv.add_child(UiKit.label("מחיר: %d אנרגיה%s" % [int(d.get("cost", 0)), " · קלף קסם" if BattleData.is_spell(id) else ""], 18, UiKit.TEXT_SOFT, 700))
 	if not profile.available_cards().has(id) and id != "king":
-		hv.add_child(UiKit.label("🔒 " + _unlock_building(id), 17, UiKit.RED_INK, 700))
+		hv.add_child(UiKit.label("🔒 " + _unlock_building(id), 17, UiKit.ACCENT, 700))
 	head.add_child(hv)
 	page.add_child(head)
 	page.add_child(UiKit.illuminated(HeroTexts.role_of(id), 20, 610))
@@ -724,7 +749,7 @@ func _book_panel(id: String) -> Control:
 		if d.get("heal", 0) > 0:
 			stats[1] = ["✚ ריפוי", int(d["heal"]), 60.0]
 		for st in stats:
-			var a := UiKit.label(st[0], 17, UiKit.INK, 700)
+			var a := UiKit.label(st[0], 17, UiKit.TEXT, 700)
 			a.autowrap_mode = TextServer.AUTOWRAP_OFF
 			grid.add_child(a)
 			var bar := ProgressBar.new()
@@ -738,9 +763,9 @@ func _book_panel(id: String) -> Control:
 		page.add_child(grid)
 		var ab: Dictionary = d.get("ability", {})
 		if not ab.is_empty():
-			page.add_child(UiKit.label("✦ כוח מיוחד: %s  (◆%d · נטען %d תורות)" % [HeroTexts.ability_name(ab["id"]), int(ab.get("cost", 0)),
-				ceili(float(ab.get("cooldown", 10)) / BattleScreen.TURN_SECONDS)], 20, UiKit.RED_INK, 700))
-			page.add_child(UiKit.label(HeroTexts.ability_desc(ab["id"]), 18, UiKit.INK))
+			page.add_child(UiKit.label("כוח מיוחד: %s · %d אנרגיה · נטען תוך %d תורות" % [HeroTexts.ability_name(ab["id"]), int(ab.get("cost", 0)),
+				ceili(float(ab.get("cooldown", 10)) / BattleScreen.TURN_SECONDS)], 20, UiKit.ACCENT, 700))
+			page.add_child(UiKit.label(HeroTexts.ability_desc(ab["id"]), 18, UiKit.TEXT))
 	var tip: Array = HeroTexts.TIPS.get(id, ["", "", ""])
 	if tip[0] != "":
 		page.add_child(UiKit.illuminated("עצה: " + tip[0], 18, 610))
@@ -748,12 +773,12 @@ func _book_panel(id: String) -> Control:
 		var sw := VBoxContainer.new()
 		sw.add_theme_constant_override("separation", 30)
 		if tip[1] != "":
-			sw.add_child(UiKit.label("✔ חזק נגד: " + tip[1], 17, Color(0.15, 0.4, 0.1), 700))
+			sw.add_child(UiKit.label("✔ חזק נגד: " + tip[1], 17, UiKit.GOOD, 700))
 		if tip[2] != "":
-			sw.add_child(UiKit.label("✕ חלש נגד: " + tip[2], 17, UiKit.RED_INK, 700))
+			sw.add_child(UiKit.label("✕ חלש נגד: " + tip[2], 17, UiKit.ACCENT, 700))
 		page.add_child(sw)
 	if not BattleData.is_spell(id):
-		page.add_child(UiKit.label("\"%s\"" % HeroTexts.random_line(id), 18, UiKit.INK_SOFT))
+		page.add_child(UiKit.label("\"%s\"" % HeroTexts.random_line(id), 18, UiKit.TEXT_SOFT))
 	return f[0]
 
 
@@ -780,8 +805,8 @@ func _settings_panel() -> Control:
 	v.add_child(UiKit.label("ניצחונות %d · הפסדים %d" % [profile.wins, profile.losses], 16, UiKit.TEXT_SOFT))
 	var reset := UiKit.button("למחוק את כל ההתקדמות", UiKit.BUTTON_RED, 16)
 	reset.pressed.connect(func():
-		if reset.text != "בטוח? לחץ שוב":
-			reset.text = "בטוח? לחץ שוב"
+		if reset.text != "בטוחים? לחצו שוב":
+			reset.text = "בטוחים? לחצו שוב"
 			return
 		app.profile = Profile.new_profile()
 		app.profile.tutorial_done = true

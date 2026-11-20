@@ -41,6 +41,7 @@ func _init() -> void:
 					elif what == "deck": n._open(n._deck_panel())
 					elif what == "chests": n._open(n._chests_panel())
 					elif what.begins_with("book:"): n._open(n._book_panel(what.substr(5)))
+					elif what == "world": n._open(n._world_panel())
 					elif what == "openchest": n._open_chest(0)
 					elif what.begins_with("building:"): n._open(n._building_panel(what.substr(9)))
 	await create_timer(1.2 * Engine.time_scale).timeout
