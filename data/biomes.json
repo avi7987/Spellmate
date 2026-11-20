@@ -1,0 +1,61 @@
+{
+	"_comment": "Worlds to fight in. 'special' = the world's special ground and what it does to heroes standing on it (speed multiplier, dps = damage per second, heal per second, effect = buff while standing). Colours are for the screen (presentation/terrain_view.gd, game light). 'monster' = the neutral monster of this world (data/heroes.json-like numbers in 'monsters').",
+	"meadow": {
+		"name": "שדות הממלכה", "desc": "האזור הרגיל: שדות ירוקים, יערות ואגמים.",
+		"special": { "name": "פרחים", "speed": 1.0 },
+		"colors": { "plain": "#4c6638", "forest": "#33512b", "hill": "#706650", "special": "#5f7a3c", "water": "#3a7fb5", "rim": "#2b3d22", "sky": "#6f8cb3", "sun": "#ffdcA0", "ambient": "#9e8c73" },
+		"props": "trees", "monster": "goblin"
+	},
+	"swamp": {
+		"name": "הביצה", "desc": "בוץ שמאט את כולם, עצים מתים וערפל ירוק.",
+		"special": { "name": "בוץ", "speed": 0.5 },
+		"colors": { "plain": "#4b5a34", "forest": "#2f3d25", "hill": "#5c5440", "special": "#4a3b26", "water": "#3f5b3a", "rim": "#232a18", "sky": "#58705a", "sun": "#c9e0a0", "ambient": "#6d7a5a" },
+		"props": "dead_trees", "monster": "toad"
+	},
+	"fire": {
+		"name": "ממלכת האש", "desc": "לבה שורפת את מי שעומד עליה, והנהר בוער.",
+		"special": { "name": "לבה", "speed": 0.9, "dps": 35 },
+		"colors": { "plain": "#3d2e2a", "forest": "#2b1f1c", "hill": "#4a3a33", "special": "#ff5a14", "water": "#ff7a1a", "rim": "#1c1210", "sky": "#6b2e22", "sun": "#ffae70", "ambient": "#a0604a" },
+		"props": "rocks_fire", "monster": "imp", "lava_river": true
+	},
+	"ice": {
+		"name": "ממלכת הקרח", "desc": "שלג וקרח חלקלק: על הקרח מחליקים מהר.",
+		"special": { "name": "קרח", "speed": 1.45 },
+		"colors": { "plain": "#d9e6ef", "forest": "#b7c9d6", "hill": "#a9b4c2", "special": "#9fd3f0", "water": "#4f8fc4", "rim": "#7f93a6", "sky": "#a9c4de", "sun": "#e8f2ff", "ambient": "#a8b8cc" },
+		"props": "snow_trees", "monster": "yeti"
+	},
+	"desert": {
+		"name": "המדבר", "desc": "חול עמוק שמאט, ונווה מדבר שמרפא.",
+		"special": { "name": "חול עמוק", "speed": 0.7 },
+		"colors": { "plain": "#d6b46e", "forest": "#9c8a4a", "hill": "#c29a5a", "special": "#e8c886", "water": "#3fa1b8", "rim": "#8a6a3a", "sky": "#e0c08a", "sun": "#fff0c8", "ambient": "#c8a87a" },
+		"props": "cactus", "monster": "scorpion"
+	},
+	"candy": {
+		"name": "ממלכת הממתקים", "desc": "עולם משוגע! על הסוכריות מקבלים זעם מתוק, והנהר עשוי שוקולד.",
+		"special": { "name": "סוכריות", "speed": 1.15, "effect": "rage" },
+		"colors": { "plain": "#f2a7c8", "forest": "#d685b0", "hill": "#e8c0dc", "special": "#ffe066", "water": "#6b3a22", "rim": "#b25a8a", "sky": "#ffc8e8", "sun": "#fff0f8", "ambient": "#e8b0d0" },
+		"props": "lollipops", "monster": "gummy"
+	},
+	"mushroom": {
+		"name": "יער הפטריות הזוהרות", "desc": "עולם משוגע! נבגים זוהרים מרפאים את מי שעומד עליהם.",
+		"special": { "name": "נבגים זוהרים", "speed": 0.85, "heal": 22 },
+		"colors": { "plain": "#2e2a4a", "forest": "#241f3c", "hill": "#3c3460", "special": "#3fe0c8", "water": "#5a3fa0", "rim": "#16122a", "sky": "#2a2350", "sun": "#b8a0ff", "ambient": "#6a5aa8" },
+		"props": "mushrooms", "monster": "shroom"
+	},
+	"monsters": {
+		"goblin":   { "name": "גובלין שודד", "hp": 900,  "dmg": 60, "rate": 1.0, "range": 1.3, "speed": 1.6 },
+		"toad":     { "name": "קרפדת ענק", "hp": 1200, "dmg": 55, "rate": 1.2, "range": 2.2, "speed": 1.2, "slow": 2.0 },
+		"imp":      { "name": "שד אש", "hp": 850,  "dmg": 70, "rate": 1.1, "range": 3.5, "speed": 1.6, "splash": 1.0 },
+		"yeti":     { "name": "יטי", "hp": 1400, "dmg": 80, "rate": 1.5, "range": 1.4, "speed": 1.2 },
+		"scorpion": { "name": "עקרב ענק", "hp": 1000, "dmg": 75, "rate": 1.0, "range": 1.4, "speed": 1.7 },
+		"gummy":    { "name": "דובון גומי ענק", "hp": 1300, "dmg": 60, "rate": 1.1, "range": 1.3, "speed": 1.3 },
+		"shroom":   { "name": "פטריית ענק", "hp": 1100, "dmg": 50, "rate": 1.2, "range": 3.0, "speed": 1.0, "splash": 1.2 }
+	},
+	"shrines": {
+		"heal":   { "name": "מעיין ריפוי", "desc": "מרפא את כל מי שעומד לידו", "heal": 40, "radius": 1.6 },
+		"power":  { "name": "אבן הכוח", "desc": "מי שעומד לידה מקבל זעם: מכה חזק ורץ מהר", "radius": 1.6 },
+		"energy": { "name": "באר הקסם", "desc": "הצד שמחזיק גיבור לידה (בלי אויבים) מקבל אנרגיה", "radius": 1.8, "every": 3.0 }
+	},
+	"treasure": { "first": 12.0, "every": 25.0, "energy": 4, "gold": 15 },
+	"monster_reward": { "energy": 6, "gold": 25 }
+}

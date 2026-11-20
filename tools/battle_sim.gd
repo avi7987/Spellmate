@@ -20,7 +20,9 @@ func _init() -> void:
 		var stats := { "spawn": 0, "death": 0, "ability": 0, "spell": 0, "energy": 0, "breach": 0 }
 		while not b.is_over():
 			# simultaneous turns: both plan, then 5 seconds of action
-			for ai in ais:
+			# alternate who plans first (the second planner sees the first one's new heroes)
+			var order := ais if int(b.time / 5.0) % 2 == 0 else [ais[1], ais[0]]
+			for ai in order:
 				ai.plan_turn(b)
 			for i in 50:
 				b.step(0.1)

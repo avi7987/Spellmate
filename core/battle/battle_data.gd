@@ -42,3 +42,15 @@ static func cfg() -> Dictionary:
 
 static func get_num(section: String, key: String, fallback: float = 0.0) -> float:
 	return float(cfg().get(section, {}).get(key, fallback))
+
+
+static func biomes() -> Dictionary:
+	return _load("res://data/biomes.json")
+
+
+static func biome(id: String) -> Dictionary:
+	return biomes().get(id, biomes().get("meadow", {}))
+
+
+static func biome_ids() -> Array:
+	return ["meadow", "swamp", "fire", "ice", "desert", "candy", "mushroom"]

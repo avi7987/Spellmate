@@ -50,19 +50,27 @@ func test_battle_starts_with_kings_gates_towers_and_army() -> void:
 	check_eq(b.winner, -1, "ongoing")
 
 
-func test_summon_costs_energy_and_card_waits_until_hero_dies() -> void:
+func test_summon_many_of_the_same_hero() -> void:
 	var b := _empty()
-	b.energy[0] = 10
+	b.energy[0] = 20
 	var idx := DECK.find("knight")
 	check(b.play_card(0, idx), "summon knight")
-	check_eq(b.energy[0], 6.0, "knight costs 4")
-	check_eq(b.card_wait(0, idx), -1.0, "card is on the field")
-	check(not b.play_card(0, idx), "only once")
-	var k: BUnit = b.units.filter(func(u): return u.kind == "knight")[0]
-	b._damage(k, 99999, null)
-	check(b.card_wait(0, idx) > 0.0, "card waits after death")
-	_run(b, b.respawn_time("knight") + 0.2)
-	check_eq(b.card_wait(0, idx), 0.0, "card ready again")
+	check_eq(b.energy[0], 16.0, "knight costs 4")
+	check(b.card_wait(0, idx) > 0.0, "card recharges")
+	check(not b.play_card(0, idx), "not twice in the same moment")
+	_run(b, Battle.HERO_RECHARGE + 0.1)
+	check(b.play_card(0, idx), "a second knight")
+	check_eq(b.units.filter(func(u): return u.kind == "knight" and u.team == 0).size(), 2, "two knights")
+	check_eq(b.summons[0], 2, "summons counted")
+
+
+func test_army_limit() -> void:
+	var b := _empty()
+	for i in Battle.MAX_HEROES:
+		b._spawn_hero(0, "soldier", Vector2(7, 7))
+	b.energy[0] = 20
+	check(b.army_full(0), "full")
+	check(not b.play_card(0, DECK.find("soldier")), "no more room")
 
 
 func test_not_enough_energy() -> void:

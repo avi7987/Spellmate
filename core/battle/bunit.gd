@@ -18,6 +18,8 @@ var structure := false
 var radius := 0.3            ## body size: structures are bigger, so range counts from their edge
 var from_card := ""          ## the deck card this hero came from ("" = free unit)
 var heal: float = 0.0        ## healers heal instead of hitting
+var home := Vector2.ZERO      ## neutral monsters guard this spot
+var last_hit_team := -1       ## who hit it last (monster rewards)
 var flying := false
 var data: Dictionary = {}
 

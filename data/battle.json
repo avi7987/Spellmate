@@ -1,18 +1,18 @@
 {
 	"_comment": "Real-time battle numbers.",
 	"energy": {
-		"start": 5,
+		"start": 8,
 		"max": 20,
 		"mine_interval": 2.2,
 		"mine_amount": 1
 	},
 	"structures": {
 		"gate": {
-			"hp": 4500
+			"hp": 2600
 		},
 		"tower": {
-			"hp": 2800,
-			"dmg": 85,
+			"hp": 1700,
+			"dmg": 90,
 			"rate": 1.0,
 			"range": 5.0
 		},

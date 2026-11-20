@@ -12,7 +12,9 @@ extends RefCounted
 
 const TICK := 0.05
 const BURN_DPS := 45.0
-const SAFETY_ENERGY_EVERY := 5.0   ## no miner alive: the palace makes a little energy so you are never stuck
+const SAFETY_ENERGY_EVERY := 5.0
+const HERO_RECHARGE := 5.0
+const MAX_HEROES := 15   ## no miner alive: the palace makes a little energy so you are never stuck
 
 var map: Dictionary
 var w: int
@@ -22,9 +24,12 @@ var units: Array = []              ## Array[BUnit], dead ones removed
 var energy: Array = [0.0, 0.0]
 var energy_max := 20.0
 var palace_level: Array = [0, 0]
-## cards[team] = Array of { id, ready_at, unit (id of the hero on the field or -1) }
+## cards[team] = Array of { id, ready_at, unit (the last hero summoned with it, or -1) }
+## A hero card can be played again and again (energy is the limit); after each use it
+## recharges for HERO_RECHARGE seconds. At most MAX_HEROES heroes per side on the field.
 var cards: Array = [[], []]
 var levels: Array = [{}, {}]       ## hero id -> level, per team
+var summons: Array = [0, 0]       ## heroes summoned with cards, per team
 var winner := -1                   ## -1 ongoing, 0/1 winner, 2 draw
 var time_limit := 300.0
 var events: Array = []
@@ -33,7 +38,16 @@ var rng := RandomNumberGenerator.new()
 
 var _next_id := 1
 var _by_id: Dictionary = {}
-var _grids: Array = [null, null]   ## AStarGrid2D per team
+var _grids: Array = [null, null, null]   ## AStarGrid2D per team (2 = neutral monsters)
+const NEUTRAL := 2
+var biome := "meadow"
+var world: Dictionary = {}         ## data/biomes.json entry of this world
+var pickups: Array = []            ## treasure chests on the map: { id, pos }
+var bonus_gold: Array = [0, 0]     ## gold from treasure and monsters, per team
+var _treasure_at := 0.0
+var _energy_well_timer := 0.0
+var _next_pickup := 1
+var _tick_n := 0
 var _acc := 0.0
 var _mine_owner: Dictionary = {}   ## Vector2i -> unit id working it
 var _safety_timer: Array = [0.0, 0.0]
@@ -42,10 +56,12 @@ var _visible: Array = [PackedByteArray(), PackedByteArray()]
 
 
 ## decks: two Arrays of 8 card ids. levels: per team { hero id: level }.
-static func create(size: String, decks: Array, team_levels: Array = [{}, {}], seed_value: int = 7) -> Battle:
+static func create(size: String, decks: Array, team_levels: Array = [{}, {}], seed_value: int = 7, p_biome: String = "meadow") -> Battle:
 	var b := Battle.new()
 	b.rng.seed = seed_value
-	b.map = MapGen.make(size, seed_value)
+	b.biome = p_biome
+	b.world = BattleData.biome(p_biome)
+	b.map = MapGen.make(size, seed_value, p_biome)
 	b.w = b.map["w"]
 	b.h = b.map["h"]
 	b.levels = team_levels
@@ -67,12 +83,9 @@ static func create(size: String, decks: Array, team_levels: Array = [{}, {}], se
 			var dir := 1 if team == 0 else -1
 			var p := Vector2(spawn.x + (i % 3 - 1) * 1.0, spawn.y + dir * (1 + i / 3))
 			var u := b._spawn_hero(team, hero, p)
-			for c in b.cards[team]:
-				if c["id"] == hero and c["unit"] < 0:
-					c["unit"] = u.id
-					u.from_card = hero
-					break
 			i += 1
+	b._spawn_monsters()
+	b._treasure_at = float(BattleData.biomes().get("treasure", {}).get("first", 12.0))
 	b._update_fog(true)
 	return b
 
@@ -145,12 +158,14 @@ func card_state(team: int, idx: int) -> Dictionary:
 	return cards[team][idx]
 
 
-## Seconds until the card can be played again (0 = ready). -1 = its hero is on the field.
+## Seconds until the card can be played again (0 = ready).
 func card_wait(team: int, idx: int) -> float:
 	var c: Dictionary = cards[team][idx]
-	if c["unit"] >= 0:
-		return -1.0
 	return maxf(0.0, c["ready_at"] - time)
+
+
+func army_full(team: int) -> bool:
+	return heroes_of(team).size() >= MAX_HEROES
 
 
 func card_cost(id: String) -> float:
@@ -233,11 +248,15 @@ func play_card(team: int, idx: int, pos: Vector2 = Vector2.ZERO) -> bool:
 		events.append({ "type": "spell", "team": team, "card": id, "pos": pos, "radius": float(sp.get("radius", 1.0)) })
 		_resolve(sp, team, pos, null)
 		return true
+	if army_full(team):
+		return false
 	energy[team] -= card_cost(id)
 	var spawn: Vector2i = map["palaces"][team]["spawn"]
-	var u := _spawn_hero(team, id, Vector2(spawn) + Vector2(rng.randf_range(-0.4, 0.4), 0))
+	var u := _spawn_hero(team, id, Vector2(spawn) + Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(0.0, 0.6) * (1 if team == 0 else -1)))
 	u.from_card = id
 	c["unit"] = u.id
+	c["ready_at"] = time + HERO_RECHARGE
+	summons[team] += 1
 	if pos != Vector2.ZERO and in_bounds(pos):
 		order_move([u.id], pos)
 	return true
@@ -310,7 +329,13 @@ func step(dt: float) -> void:
 
 func _tick(dt: float) -> void:
 	time += dt
-	for u: BUnit in units.duplicate():
+	_tick_n += 1
+	# Units act one after another; whoever acts second reacts to the first one's
+	# move. Alternate the order every tick so neither kingdom always gets that edge.
+	var order := units.duplicate()
+	if _tick_n % 2 == 1:
+		order.reverse()
+	for u: BUnit in order:
 		if u.hp <= 0.0:
 			continue
 		_effects(u, dt)
@@ -327,6 +352,7 @@ func _tick(dt: float) -> void:
 			_hero_think(u, dt)
 	_separate()
 	_economy(dt)
+	_world_tick(dt)
 	_fog_timer -= dt
 	if _fog_timer <= 0.0:
 		_fog_timer = 0.25
@@ -348,6 +374,15 @@ func _score(team: int) -> float:
 func _effects(u: BUnit, dt: float) -> void:
 	if u.has_effect("burn", time):
 		_damage(u, BURN_DPS * dt, null, true)
+	# the world's special ground: lava burns, spores heal, candy gives a sugar rage
+	if not u.structure and not u.flying and terrain_at(u.cell()) == Chess.Terrain.SPECIAL:
+		var sp: Dictionary = world.get("special", {})
+		if sp.has("dps"):
+			_damage(u, float(sp["dps"]) * dt, null, true)
+		if sp.has("heal"):
+			_heal(u, float(sp["heal"]) * dt, true)
+		if sp.has("effect"):
+			u.effects[sp["effect"]] = time + 0.4
 
 
 func _structure_think(u: BUnit) -> void:
@@ -356,7 +391,7 @@ func _structure_think(u: BUnit) -> void:
 	var best: BUnit = null
 	var best_d := INF
 	for e: BUnit in units:
-		if e.team == u.team or e.structure or not can_target(u.team, e):
+		if e.team == u.team or e.structure or e.team == NEUTRAL or not can_target(u.team, e):
 			continue
 		var d := u.pos.distance_to(e.pos) - e.radius
 		if d <= u.range_ and d < best_d:
@@ -377,6 +412,9 @@ func _hero_think(u: BUnit, dt: float) -> void:
 		u.target_id = -1
 	if u.kind == "king":
 		_fight_in_reach(u)
+		return
+	if u.team == NEUTRAL:
+		_monster_think(u, dt)
 		return
 	match u.order:
 		"attack":
@@ -523,10 +561,12 @@ func _damage(t: BUnit, amount: float, by: BUnit, quiet: bool = false) -> void:
 	if t.has_effect("shield", time):
 		amount *= 0.5
 	t.hp -= amount
+	if by != null:
+		t.last_hit_team = by.team
 	if not quiet or int(time * 4) != int((time - TICK) * 4):
 		events.append({ "type": "damage", "id": t.id, "amount": amount, "hp": t.hp })
 	# a hero that gets hit while idle fights back
-	if by != null and not t.structure and t.order == "" and t.target_id < 0 and t.role() != "healer" and t.kind != "king":
+	if by != null and not t.structure and t.order == "" and t.target_id < 0 and t.role() != "healer" and t.kind != "king" and t.team != NEUTRAL and not by.structure:
 		if can_target(t.team, by):
 			t.target_id = by.id
 			t.order = "attack"
@@ -534,12 +574,13 @@ func _damage(t: BUnit, amount: float, by: BUnit, quiet: bool = false) -> void:
 		_die(t)
 
 
-func _heal(t: BUnit, amount: float) -> void:
+func _heal(t: BUnit, amount: float, quiet: bool = false) -> void:
 	if t.hp <= 0.0 or t.structure:
 		return
 	var before := t.hp
 	t.hp = minf(t.max_hp, t.hp + amount)
-	events.append({ "type": "heal", "id": t.id, "amount": t.hp - before, "hp": t.hp })
+	if not quiet or (t.hp > before and int(time * 2) != int((time - TICK) * 2)):
+		events.append({ "type": "heal", "id": t.id, "amount": (t.hp - before) * (1.0 if not quiet else 10.0), "hp": t.hp })
 
 
 func _die(u: BUnit) -> void:
@@ -547,12 +588,12 @@ func _die(u: BUnit) -> void:
 	units.erase(u)
 	_by_id.erase(u.id)
 	_release_mine(u)
-	events.append({ "type": "death", "id": u.id, "kind": u.kind, "team": u.team, "pos": u.pos })
-	if u.from_card != "":
-		for c in cards[u.team]:
-			if c["unit"] == u.id:
-				c["unit"] = -1
-				c["ready_at"] = time + respawn_time(c["id"])
+	events.append({ "type": "death", "id": u.id, "kind": u.kind, "team": u.team, "pos": u.pos, "by": u.last_hit_team })
+	if u.team == NEUTRAL and u.last_hit_team in [0, 1]:
+		var r: Dictionary = BattleData.biomes().get("monster_reward", {})
+		_add_energy(u.last_hit_team, float(r.get("energy", 6)), null)
+		bonus_gold[u.last_hit_team] += int(r.get("gold", 25))
+		events.append({ "type": "monster_slain", "team": u.last_hit_team, "kind": u.kind, "pos": u.pos })
 	if u.kind == "gate" or u.kind == "wall":
 		_set_cell_open(u.cell(), true)
 	if u.kind == "tower":
@@ -569,8 +610,8 @@ func _die(u: BUnit) -> void:
 		events.append({ "type": "game_over", "winner": winner, "reason": "king" })
 
 
-func respawn_time(card_id: String) -> float:
-	return 8.0 + card_cost(card_id) * 2.0
+func respawn_time(_card_id: String) -> float:
+	return HERO_RECHARGE
 
 
 ## Area powers and spells: area_damage, area_heal, area_buff, dash, wall.
@@ -612,6 +653,113 @@ func _resolve(ab: Dictionary, team: int, pos: Vector2, caster: BUnit) -> void:
 			wall.expires_at = time + dur
 			_set_cell_blocked_for_enemies(team, c)
 			events.append({ "type": "spawn", "id": wall.id })
+
+
+# ------------------------------------------------------------------ the world
+
+## A neutral monster guards its camp: it attacks anyone who comes close and
+## goes back home (healing) when the enemies leave or it is lured too far.
+func _monster_think(u: BUnit, dt: float) -> void:
+	var t: BUnit = unit(u.target_id) if u.target_id >= 0 else null
+	if t == null or t.hp <= 0.0 or t.pos.distance_to(u.home) > 5.5:
+		t = null
+		u.target_id = -1
+		var best_d := 2.6
+		for e: BUnit in units:
+			if e.team == NEUTRAL or e.structure or e.kind == "king":
+				continue
+			var d := e.pos.distance_to(u.home)
+			if d < best_d:
+				best_d = d
+				t = e
+		if t != null:
+			u.target_id = t.id
+	if t != null:
+		if _in_reach(u, t):
+			_hit(u, t)
+		else:
+			_walk_toward(u, t.pos, dt, t)
+		return
+	u.order = ""
+	if u.pos.distance_to(u.home) > 0.3:
+		_walk_toward(u, u.home, dt, null)
+	else:
+		_heal(u, 40.0 * dt, true)
+
+
+func _spawn_monsters() -> void:
+	var kind: String = world.get("monster", "goblin")
+	var d: Dictionary = BattleData.biomes().get("monsters", {}).get(kind, {})
+	for c in map.get("camps", []):
+		var u := _new_unit(NEUTRAL, kind, Vector2(c))
+		u.data = d.duplicate()
+		u.data["role"] = "monster"
+		u.max_hp = float(d.get("hp", 1000))
+		u.hp = u.max_hp
+		u.dmg = float(d.get("dmg", 60))
+		u.rate = float(d.get("rate", 1.2))
+		u.range_ = float(d.get("range", 1.3))
+		u.speed = float(d.get("speed", 1.2))
+		u.radius = 0.45
+		u.home = Vector2(c)
+		u.facing = Vector2(0, 1)
+		events.append({ "type": "spawn", "id": u.id })
+
+
+## Shrines, treasure chests.
+func _world_tick(dt: float) -> void:
+	var sh_data: Dictionary = BattleData.biomes().get("shrines", {})
+	_energy_well_timer += dt
+	var well_tick := _energy_well_timer >= float(sh_data.get("energy", {}).get("every", 3.0))
+	if well_tick:
+		_energy_well_timer = 0.0
+	for sh in map.get("shrines", []):
+		var p := Vector2(sh["pos"])
+		var info: Dictionary = sh_data.get(sh["type"], {})
+		var r := float(info.get("radius", 1.6))
+		var present := {}
+		for u: BUnit in units:
+			if u.structure or u.team == NEUTRAL or u.pos.distance_to(p) > r:
+				continue
+			present[u.team] = true
+			match sh["type"]:
+				"heal":
+					_heal(u, float(info.get("heal", 40)) * dt, true)
+				"power":
+					u.effects["rage"] = time + 0.4
+		if sh["type"] == "energy" and well_tick and present.size() == 1:
+			var team: int = present.keys()[0]
+			_add_energy(team, 1.0, null)
+			events.append({ "type": "shrine", "team": team, "pos": p })
+	# treasure chests appear in pairs (mirrored, so it is fair) and the first hero to touch one wins it
+	var tr: Dictionary = BattleData.biomes().get("treasure", {})
+	if time >= _treasure_at:
+		_treasure_at = time + float(tr.get("every", 25.0))
+		_spawn_treasure()
+	for p in pickups.duplicate():
+		for u: BUnit in units:
+			if u.structure or u.team == NEUTRAL or u.kind == "king" or u.pos.distance_to(p["pos"]) > 0.7:
+				continue
+			pickups.erase(p)
+			_add_energy(u.team, float(tr.get("energy", 4)), u)
+			bonus_gold[u.team] += int(tr.get("gold", 15))
+			events.append({ "type": "treasure", "team": u.team, "id": p["id"], "pos": p["pos"], "by": u.id })
+			break
+
+
+func _spawn_treasure() -> void:
+	if pickups.size() >= 4:
+		return
+	var mid := (h - 1) / 2
+	for attempt in 20:
+		var c := Vector2i(rng.randi_range(1, w - 2), rng.randi_range(maxi(6, mid - 5), mid - 1))
+		var mirror := Vector2i(w - 1 - c.x, h - 1 - c.y)
+		if terrain_at(c) in [Chess.Terrain.PLAIN, Chess.Terrain.SPECIAL, Chess.Terrain.FOREST, Chess.Terrain.HILL]:
+			for cc in [c, mirror]:
+				pickups.append({ "id": _next_pickup, "pos": Vector2(cc) })
+				events.append({ "type": "treasure_spawn", "id": _next_pickup, "pos": Vector2(cc) })
+				_next_pickup += 1
+			return
 
 
 # ------------------------------------------------------------------ economy
@@ -681,6 +829,8 @@ func _speed(u: BUnit) -> float:
 		s *= 1.25
 	if not u.flying and terrain_at(u.cell()) == Chess.Terrain.FOREST:
 		s *= 0.65
+	if not u.flying and terrain_at(u.cell()) == Chess.Terrain.SPECIAL:
+		s *= float(world.get("special", {}).get("speed", 1.0))
 	return s
 
 
@@ -767,7 +917,7 @@ func _passable_for_team(team: int, c: Vector2i) -> bool:
 
 
 func _build_grids() -> void:
-	for team in 2:
+	for team in 3:
 		var g := AStarGrid2D.new()
 		g.region = Rect2i(0, 0, w, h)
 		g.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
@@ -786,13 +936,15 @@ func _build_grids() -> void:
 
 
 func _set_cell_open(c: Vector2i, _open: bool) -> void:
-	for team in 2:
+	for team in 3:
 		var t := terrain_at(c)
 		_grids[team].set_point_solid(c, t == Chess.Terrain.WALL or t == Chess.Terrain.WATER)
 
 
 func _set_cell_blocked_for_enemies(team: int, c: Vector2i) -> void:
-	_grids[1 - team].set_point_solid(c, true)
+	for other in 3:
+		if other != team:
+			_grids[other].set_point_solid(c, true)
 
 
 # ------------------------------------------------------------------ spawning

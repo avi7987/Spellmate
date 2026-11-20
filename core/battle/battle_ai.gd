@@ -38,8 +38,7 @@ func think(b: Battle) -> void:
 func plan_turn(b: Battle) -> void:
 	if b.is_over():
 		return
-	_summon(b)
-	if level >= 2:
+	for i in (1 if level <= 0 else 3):
 		_summon(b)
 	if level > 0:
 		_spells(b)
@@ -60,7 +59,7 @@ func _summon(b: Battle) -> void:
 			continue
 		var want := b.card_cost(id) + _rng.randf() * 3.0
 		if BattleData.hero(id).get("role", "") == "miner":
-			want = 20.0 if miners < 2 else -1.0
+			want = 20.0 if miners < 3 else -1.0
 		options.append([want, i])
 	if options.is_empty():
 		return
@@ -103,7 +102,7 @@ func _spells(b: Battle) -> void:
 		var sp := BattleData.spell(id)
 		match sp["type"]:
 			"area_damage":
-				if cluster[1] >= 2 or (cluster[1] >= 1 and my_king and cluster[0].distance_to(my_king.pos) < 6.0):
+				if cluster[1] >= 2 or (cluster[1] >= 1 and (level >= 2 or (my_king and cluster[0].distance_to(my_king.pos) < 6.0))):
 					b.play_card(team, i, cluster[0])
 					return
 			"area_heal":
@@ -195,12 +194,12 @@ func _army(b: Battle) -> void:
 	var power := 0.0
 	for u: BUnit in army:
 		power += b.card_cost(u.kind)
-	var need: float = [14.0, 11.0, 9.0][clampi(level - 1, 0, 2)]
+	var need: float = [7.0, 6.0, 5.0][clampi(level - 1, 0, 2)]
 	if level <= 0:
 		need = 999.0   # tutorial: the computer only defends
 	if power >= need:
 		_attacking = true
-	elif power < need * 0.4:
+	elif power < need * 0.3:
 		_attacking = false
 	var defenders := []
 	var attackers := []

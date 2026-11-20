@@ -51,11 +51,7 @@ func setup(_bs: BattleScreen) -> void:
 
 
 func _summons(b: BattleScreen) -> int:
-	var n := 0
-	for c in b.battle.cards[0]:
-		if c["unit"] >= 0:
-			n += 1
-	return n
+	return b.battle.summons[0]
 
 
 func _show() -> void:
