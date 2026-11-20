@@ -1,6 +1,6 @@
 class_name TerrainView
 extends Node3D
-## Draws the world's squares from GameState.terrain: stone and grass tiles,
+## Draws the map squares (a terrain array, see MapGen): stone and grass tiles,
 ## forests with small trees, raised hills, the river with bridges, glowing
 ## crystal mines, palace floors and palace walls.
 ## Identical tiles are batched into MultiMeshes so a 30x30 world stays fast in
@@ -29,7 +29,12 @@ static func top_of(terrain: int) -> float:
 	return TILE_HEIGHT * 0.5
 
 
-func build(terrain: PackedInt32Array) -> void:
+## The centre of square (x, y) of a w x h map at height 0 (y = 0 is the bottom / Sun side).
+static func cell_xz(x: int, y: int, w: int, h: int) -> Vector3:
+	return Vector3(x - (w - 1) / 2.0, 0, (h - 1) / 2.0 - y)
+
+
+func build(terrain: PackedInt32Array, w: int = Chess.W, h: int = Chess.H) -> void:
 	for c in get_children():
 		c.queue_free()
 	_batches.clear()
@@ -37,9 +42,9 @@ func build(terrain: PackedInt32Array) -> void:
 	water.shader = WATER_SHADER
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
-	for s in Chess.N:
+	for s in w * h:
 		var t: int = terrain[s]
-		var pos := BoardView.square_xz(s)
+		var pos := cell_xz(s % w, s / w, w, h)
 		var shade := rng.randi() % 3   # three shades per tile type look hand-made
 		match t:
 			Chess.Terrain.WATER:
@@ -61,7 +66,7 @@ func build(terrain: PackedInt32Array) -> void:
 				_add("mine", Vector3(0.98, TILE_HEIGHT, 0.98), Style.matte(Style.TILE_MINE), pos)
 				_crystals(pos + Vector3(0, top_of(t), 0), rng)
 			Chess.Terrain.CASTLE:
-				var light := (Chess.file_of(s) + Chess.rank_of(s)) % 2 == 0
+				var light := (s % w + s / w) % 2 == 0
 				_add("castle%d" % int(light), Vector3(0.98, TILE_HEIGHT, 0.98),
 					Style.matte(Style.TILE_CASTLE.darkened(0.0 if light else 0.12)), pos)
 			Chess.Terrain.WALL:

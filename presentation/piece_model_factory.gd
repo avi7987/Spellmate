@@ -13,15 +13,10 @@ extends RefCounted
 ##   "player": AnimationPlayer or null
 
 const DATA_PATH := "res://data/characters.json"
-const KIND_NAMES := Chess.KIND_NAMES
 const TEAM_SUFFIX := { Chess.WHITE: "light", Chess.BLACK: "shadow" }
 
 static var _defs: Dictionary = {}
 static var _materials: Dictionary = {}
-
-
-static func definition(kind: int, color: int) -> Dictionary:
-	return definition_named(KIND_NAMES[kind], color)
 
 
 static func definition_named(id: String, color: int) -> Dictionary:
@@ -29,10 +24,6 @@ static func definition_named(id: String, color: int) -> Dictionary:
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
 		_defs = parsed if parsed is Dictionary else { "_": {} }
 	return _defs.get(TEAM_SUFFIX[color], {}).get(id, {})
-
-
-static func build(kind: int, color: int) -> Node3D:
-	return build_hero(KIND_NAMES[kind], color)
 
 
 ## Builds the model of a hero by its id in data/heroes.json ("soldier", "dragon"...).
@@ -235,46 +226,6 @@ static func _add_extra(model: Node3D, what: String, color: int) -> void:
 			if head: _add(head, _box(Vector3(0.75, 0.2, 0.1)), Style.cloth(Color(0.08, 0.06, 0.08)), Vector3(0, 0.38, 0.5))
 		"belly":
 			if chest: _add(chest, _sphere(0.6), Style.toon(Style.SKIN), Vector3(0, 0.0, 0.25), Vector3.ZERO, Vector3(1, 0.9, 0.7))
-
-
-## The two kingdoms' concept, shown on every unit:
-##  - Sun: a glowing golden halo behind the head of its holy leaders, and a warm
-##    sun disc under every unit's feet.
-##  - Void: shards of purple crystal floating around every unit (PieceView spins
-##    the node named "Orbit").
-static func _add_aura(model: Node3D, kind: int, color: int) -> void:
-	if color == Chess.WHITE:
-		if kind in [Chess.Kind.KING, Chess.Kind.QUEEN, Chess.Kind.BISHOP]:
-			var head := _head_attachment(model)
-			if head != null:
-				var halo := MeshInstance3D.new()
-				var t := TorusMesh.new()
-				t.inner_radius = 0.42
-				t.outer_radius = 0.52
-				halo.mesh = t
-				halo.material_override = Style.glow(Color(1.0, 0.82, 0.35), 2.2)
-				halo.position = Vector3(0, 0.75, -0.45)
-				halo.rotation_degrees = Vector3(90, 0, 0)
-				head.add_child(halo)
-	else:
-		var orbit := Node3D.new()
-		orbit.name = "Orbit"
-		orbit.position = Vector3(0, 1.3, 0)
-		model.add_child(orbit)
-		var shard := Style.glow(Color(0.7, 0.3, 1.0), 2.6)
-		for i in 3:
-			var mi := MeshInstance3D.new()
-			var c := CylinderMesh.new()
-			c.top_radius = 0.0
-			c.bottom_radius = 0.12
-			c.height = 0.34
-			c.radial_segments = 4
-			mi.mesh = c
-			mi.material_override = shard
-			var a := TAU * i / 3.0
-			mi.position = Vector3(cos(a) * 0.85, 0.25 * sin(a * 2.0), sin(a) * 0.85)
-			mi.rotation_degrees = Vector3(20, rad_to_deg(a), 15)
-			orbit.add_child(mi)
 
 
 static func _head_attachment(model: Node3D) -> BoneAttachment3D:

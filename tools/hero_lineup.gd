@@ -35,7 +35,7 @@ func _init() -> void:
 			var m := PieceModelFactory.build_hero(ids[i], teams[row])
 			world.add_child(m)
 			m.position = Vector3((i - (n - 1) / 2.0) * 1.35, 0, row * 2.2)
-			var player: AnimationPlayer = m.get_meta("player", null)
+			var player: AnimationPlayer = (m.get_meta("player") if m.has_meta("player") else null)
 			var anims: Dictionary = m.get_meta("anims")
 			if player and anims.has("idle") and player.has_animation(anims["idle"]):
 				player.play(anims["idle"])

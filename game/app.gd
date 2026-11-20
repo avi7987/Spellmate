@@ -1,0 +1,135 @@
+extends Node3D
+## Entry point of the game. Builds the shared world (light, sky, camera),
+## loads the player's profile and switches between the screens:
+##   base village (BaseScreen)  <->  battle (BattleScreen)  ->  results
+## The first time, a short guided battle (tutorial) starts right away.
+
+var camera_rig: CameraRig
+var portraits: Portraits
+var profile: Profile
+var _env: Environment
+var _sun: DirectionalLight3D
+var _screen: Node = null
+var _overlay: CanvasLayer
+
+
+func _ready() -> void:
+	randomize()
+	_build_world()
+	camera_rig = CameraRig.new()
+	add_child(camera_rig)
+	portraits = Portraits.new()
+	add_child(portraits)
+	_overlay = CanvasLayer.new()
+	_overlay.layer = 20
+	add_child(_overlay)
+	profile = Profile.load_or_new()
+	Sfx.volume = float(profile.settings.get("sfx", 0.8))
+	Music.volume = float(profile.settings.get("music", 0.45))
+	var args := OS.get_cmdline_user_args()
+	if args.has("--battle"):
+		var size: String = args[args.find("--battle") + 1] if args.size() > args.find("--battle") + 1 else "small"
+		start_battle(size, args.has("--autoplay"))
+	elif not profile.tutorial_done and not args.has("--base"):
+		start_tutorial()
+	else:
+		go_base()
+
+
+func _build_world() -> void:
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_SKY
+	var sky := Sky.new()
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.25, 0.3, 0.45)
+	sky_mat.sky_horizon_color = Color(0.6, 0.55, 0.5)
+	sky_mat.ground_bottom_color = Color(0.15, 0.13, 0.1)
+	sky_mat.ground_horizon_color = Color(0.45, 0.4, 0.35)
+	sky_mat.energy_multiplier = 0.3
+	sky.sky_material = sky_mat
+	_env.sky = sky
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	_env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_env.glow_enabled = true
+	_env.glow_intensity = 0.35
+	_env.glow_hdr_threshold = 1.1
+	var m: Dictionary = Style.MOOD[0]
+	_env.ambient_light_color = m["ambient"]
+	_env.ambient_light_energy = m["ambient_energy"] + 0.08
+	var we := WorldEnvironment.new()
+	we.environment = _env
+	add_child(we)
+	_sun = DirectionalLight3D.new()
+	_sun.rotation_degrees = Vector3(-58, 30, 0)
+	_sun.shadow_enabled = true
+	_sun.directional_shadow_max_distance = 45.0
+	_sun.light_color = m["sun"]
+	_sun.light_energy = m["sun_energy"]
+	add_child(_sun)
+
+
+func _swap(screen: Node) -> void:
+	if _screen != null:
+		_screen.queue_free()
+	for c in _overlay.get_children():
+		c.queue_free()
+	_screen = screen
+	add_child(screen)
+
+
+func go_base() -> void:
+	var base := BaseScreen.new()
+	base.app = self
+	_swap(base)
+	base.open()
+
+
+## A battle with the current deck against the computer of the current arena.
+func start_battle(size: String, autoplay: bool = false) -> void:
+	await portraits.render(profile.deck + BattleData.hero_ids(), 0)
+	var arena := profile.arena()
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var ai_levels := {}
+	for id in BattleData.hero_ids():
+		ai_levels[id] = int(arena["ai_level"])
+	var bs := BattleScreen.new()
+	bs.camera_rig = camera_rig
+	_swap(bs)
+	bs.start(size, profile.deck, profile.levels(), profile.enemy_deck(rng), int(arena["ai"]), ai_levels)
+	bs.battle.apply_bonuses(0, profile.palace_bonus(), profile.start_energy_bonus())
+	if autoplay:
+		bs.autoplay = BattleAI.new(0, 2)
+	bs.finished.connect(_on_battle_finished)
+
+
+func start_tutorial() -> void:
+	await portraits.render(profile.deck + ["king", "queen"], 0)
+	var bs := BattleScreen.new()
+	bs.camera_rig = camera_rig
+	_swap(bs)
+	bs.start("small", profile.deck, profile.levels(), ["miner", "soldier", "archer", "soldier", "archer", "soldier", "ice_bomb", "fire_bomb"], 0)
+	var guide := TutorialGuide.new()
+	bs.add_child(guide)
+	bs.tutorial = guide
+	guide.setup(bs)
+	bs.finished.connect(func(result):
+		profile.tutorial_done = true
+		_on_battle_finished(result))
+
+
+func _on_battle_finished(result: Dictionary) -> void:
+	var rewards := profile.apply_battle(result)
+	profile.save()
+	var panel := ResultsPanel.new()
+	_overlay.add_child(panel)
+	panel.show_results(result, rewards, profile)
+	await panel.closed
+	go_base()
+
+
+func save_settings() -> void:
+	profile.settings["sfx"] = Sfx.volume
+	profile.settings["music"] = Music.volume
+	profile.save()

@@ -166,6 +166,15 @@ func palace_upgrade_cost(team: int) -> int:
 	return -1 if palace_level[team] >= ups.size() else int(ups[palace_level[team]]["cost"])
 
 
+## Bonuses from the base village: a stronger palace and more energy at the start.
+func apply_bonuses(team: int, palace_bonus: float, energy_bonus: float) -> void:
+	for u: BUnit in units:
+		if u.team == team and (u.structure or u.kind == "king"):
+			u.max_hp *= 1.0 + palace_bonus
+			u.hp = u.max_hp
+	energy[team] = minf(energy_max, energy[team] + energy_bonus)
+
+
 # ------------------------------------------------------------------ orders
 
 ## Walk to a spot. On the way heroes hit enemies already in reach, but don't chase.

@@ -1,0 +1,113 @@
+extends SceneTree
+## Plays through the whole game like a person would and prints each step.
+## Any SCRIPT ERROR in the output = something broke.
+## xvfb-run -a godot --rendering-driver opengl3 --script res://tools/flow_check.gd -- [shots_dir]
+
+var app: Node
+var dir := ""
+
+
+func _shot(name: String) -> void:
+	if dir != "":
+		root.get_texture().get_image().save_png("%s/%s.png" % [dir, name])
+
+
+func _bs() -> BattleScreen:
+	for n in app.get_children():
+		if n is BattleScreen:
+			return n
+	return null
+
+
+func _base() -> BaseScreen:
+	for n in app.get_children():
+		if n is BaseScreen:
+			return n
+	return null
+
+
+func _wait(s: float) -> void:
+	await create_timer(s).timeout
+
+
+func _init() -> void:
+	var args := OS.get_cmdline_user_args()
+	dir = args[0] if args.size() > 0 else ""
+	DisplayServer.window_set_size(Vector2i(1280, 800))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://profile.json"))
+	app = load("res://scenes/app.tscn").instantiate()
+	root.add_child(app)
+	await _wait(3.0)
+	var bs := _bs()
+	print("1 tutorial battle started: ", bs != null, " guide: ", bs.tutorial != null)
+	_shot("01_tutorial")
+	var cam := root.get_camera_3d()
+	# drag-select the army
+	var army := bs.battle.heroes_of(0)
+	bs._select(army.map(func(u): return u.id), false)
+	print("2 selected ", bs.selected.size())
+	await _wait(0.3)
+	var target := bs.view.to_world(Vector2(7, 9))
+	bs._order(cam.unproject_position(target))
+	print("3 ordered: ", army.map(func(u): return u.order))
+	await _wait(2.0)
+	bs.battle.energy[0] = 20
+	bs._on_card(1)   # archer
+	print("4 summoned archer: ", bs.battle.cards[0][1]["unit"] >= 0)
+	bs._on_card(6)   # fire bomb
+	bs._play_spell_at(Vector2(7, 14))
+	print("5 fire bomb: ", bs.battle.card_wait(0, 6) > 0.0)
+	var queen: BUnit = bs.battle.units.filter(func(u): return u.kind == "queen" and u.team == 0)[0]
+	bs._on_ability(queen.id)
+	bs._cast_at(queen.pos + Vector2(0, 3))
+	print("6 queen power: ", queen.ability_ready_at > bs.battle.time)
+	bs.toggle_pause()
+	await _wait(0.5)
+	_shot("02_paused")
+	bs.toggle_pause()
+	await _wait(3.0)
+	_shot("03_fight")
+	# win: break the gate and defeat the king
+	for u: BUnit in bs.battle.units.duplicate():
+		if u.team == 1 and u.kind == "gate":
+			bs.battle._damage(u, 1e9, null)
+	bs.battle._damage(bs.battle.king(1), 1e9, null)
+	await _wait(3.5)
+	_shot("04_results")
+	var panel: ResultsPanel = null
+	for n in app.find_children("*", "ResultsPanel", true, false):
+		panel = n
+	print("7 results panel: ", panel != null, " gold ", app.profile.gold, " trophies ", app.profile.trophies, " chests ", app.profile.chests)
+	panel.closed.emit()
+	await _wait(3.0)
+	var base := _base()
+	print("8 base: ", base != null, " tutorial_done ", app.profile.tutorial_done)
+	_shot("05_base")
+	base._open_chest(0)
+	await _wait(2.5)
+	_shot("06_chest")
+	app.profile.gold = 2000
+	base._open(base._building_panel("mage_tower"))
+	await _wait(0.5)
+	print("9 build mage tower: ", app.profile.build("mage_tower"))
+	base._rebuild_buildings()
+	base._open(base._heroes_panel())
+	await _wait(0.5)
+	app.profile.add_xp("queen", 100)
+	print("10 upgrade queen: ", app.profile.upgrade_hero("queen"))
+	base._deck_slot = 0
+	base._open(base._deck_panel())
+	print("11 deck swap: ", app.profile.set_deck_card(0, "queen"), " ", app.profile.deck)
+	await _wait(0.5)
+	_shot("07_deck")
+	base._open(base._settings_panel())
+	await _wait(0.3)
+	app.start_battle("large")
+	await _wait(4.0)
+	print("12 large battle with fog: ", _bs() != null and _bs().battle.map["fog"])
+	_shot("08_large")
+	_bs()._finish(1, true)
+	await _wait(1.0)
+	print("13 quit -> results")
+	print("DONE")
+	quit()

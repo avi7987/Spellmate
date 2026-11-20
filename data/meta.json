@@ -1,0 +1,46 @@
+{
+	"_comment": "Between battles: the base village, hero levels, chests, trophies and arenas. Gold costs, trophies needed. See core/profile.gd.",
+	"start": {
+		"gold": 150,
+		"collection": ["soldier", "archer", "miner", "knight", "shield", "ice_bomb", "fire_bomb", "heal_potion"],
+		"deck": ["soldier", "archer", "miner", "knight", "shield", "ice_bomb", "fire_bomb", "heal_potion"]
+	},
+	"buildings": {
+		"palace":       { "max": 5, "cost": 200, "per_level": "palace" },
+		"mine":         { "max": 5, "cost": 150, "per_level": "energy" },
+		"barracks":     { "max": 1, "cost": 150, "unlocks": ["shield_wall"] },
+		"mage_tower":   { "max": 1, "cost": 300, "unlocks": ["queen", "healer", "ice_witch", "fire_mage"] },
+		"shadow_den":   { "max": 1, "cost": 400, "unlocks": ["assassin"], "trophies": 150 },
+		"forge":        { "max": 1, "cost": 500, "unlocks": ["giant", "ballista"], "trophies": 300 },
+		"dragon_roost": { "max": 1, "cost": 900, "unlocks": ["dragon"], "trophies": 600 }
+	},
+	"decorations": {
+		"well":   { "cost": 60 },
+		"market": { "cost": 120 },
+		"church": { "cost": 200 },
+		"windmill": { "cost": 160 },
+		"archery": { "cost": 100 }
+	},
+	"palace_bonus": 0.08,
+	"mine_bonus_energy": 1,
+	"hero_level": { "max": 10, "xp": 30, "gold": 40 },
+	"rewards": {
+		"win":  { "gold": [40, 70], "trophies": 30, "xp": 12 },
+		"loss": { "gold": [10, 20], "trophies": -15, "xp": 5 },
+		"draw": { "gold": [20, 30], "trophies": 0, "xp": 8 },
+		"size_bonus": { "small": 1.0, "medium": 1.4, "large": 1.9 }
+	},
+	"chests": {
+		"wood":   { "gold": [30, 60],   "xp": [30, 50],   "heroes": 2, "new_card": 0.0 },
+		"silver": { "gold": [70, 120],  "xp": [60, 90],   "heroes": 3, "new_card": 0.15 },
+		"gold":   { "gold": [150, 250], "xp": [110, 160], "heroes": 4, "new_card": 0.35 }
+	},
+	"chest_slots": 4,
+	"arenas": [
+		{ "name": "שדה הכפר",    "trophies": 0,    "ai": 1, "ai_level": 1 },
+		{ "name": "יער הצללים",  "trophies": 150,  "ai": 2, "ai_level": 2 },
+		{ "name": "הרי הקרח",    "trophies": 400,  "ai": 2, "ai_level": 3 },
+		{ "name": "מבצר הדרקון", "trophies": 800,  "ai": 3, "ai_level": 4 },
+		{ "name": "ארמון האופל", "trophies": 1300, "ai": 3, "ai_level": 6 }
+	]
+}

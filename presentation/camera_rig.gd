@@ -25,6 +25,15 @@ var _orbit_angle := 0.0
 var _dragging := false
 var _cinematic := false
 var _limit := Vector2(Chess.W / 2.0, Chess.H / 2.0)
+## Mouse buttons that drag the view (the battle uses the right button for orders).
+var drag_buttons: Array = [MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE]
+## Scroll when the mouse touches the edge of the screen.
+var edge_scroll := false
+
+
+## How far the camera may scroll (half the map size).
+func set_limits(w: float, h: float) -> void:
+	_limit = Vector2(w / 2.0, h / 2.0)
 
 
 func _ready() -> void:
@@ -114,7 +123,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
 			distance = clampf(distance + 1.5, MIN_DIST, MAX_DIST)
 			_apply()
-		elif event.button_index in [MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE]:
+		elif event.button_index in drag_buttons:
 			_dragging = event.pressed
 	elif event is InputEventMouseMotion and _dragging:
 		var k := distance / 600.0
@@ -149,13 +158,3 @@ func _process(delta: float) -> void:
 			camera.h_offset = 0.0
 			camera.v_offset = 0.0
 
-
-## The square under a screen position, or -1.
-func square_at_screen(screen_pos: Vector2) -> int:
-	var origin := camera.project_ray_origin(screen_pos)
-	var dir := camera.project_ray_normal(screen_pos)
-	if absf(dir.y) < 0.0001:
-		return -1
-	var t := (0.1 - origin.y) / dir.y
-	var hit := origin + dir * t
-	return BoardView.world_to_square(hit)

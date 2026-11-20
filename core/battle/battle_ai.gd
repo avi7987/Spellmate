@@ -20,8 +20,11 @@ func _init(t: int = 1, lvl: int = 2) -> void:
 func think(b: Battle) -> void:
 	if b.is_over() or b.time < _next_think:
 		return
-	_next_think = b.time + [1.6, 1.1, 0.7][clampi(level - 1, 0, 2)]
+	_next_think = b.time + (3.0 if level <= 0 else [1.6, 1.1, 0.7][clampi(level - 1, 0, 2)])
 	_summon(b)
+	if level <= 0:
+		_army(b)
+		return
 	_spells(b)
 	_powers(b)
 	_army(b)
@@ -180,6 +183,8 @@ func _army(b: Battle) -> void:
 	for u: BUnit in army:
 		power += b.card_cost(u.kind)
 	var need: float = [14.0, 11.0, 9.0][clampi(level - 1, 0, 2)]
+	if level <= 0:
+		need = 999.0   # tutorial: the computer only defends
 	if power >= need:
 		_attacking = true
 	elif power < need * 0.4:
