@@ -213,8 +213,8 @@ func test_ai_vs_ai_finishes() -> void:
 	var ais := [BattleAI.new(0, 2), BattleAI.new(1, 2)]
 	while not b.is_over():
 		for ai in ais:
-			ai.think(b)
-		b.step(0.1)
+			ai.plan_turn(b)
+		_run(b, 5.0)
 		b.take_events()
 	check(b.winner >= 0, "game ended")
 	check(b.time <= b.time_limit + 0.2, "within the time limit")

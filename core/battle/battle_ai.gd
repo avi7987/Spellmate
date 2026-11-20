@@ -32,8 +32,21 @@ func think(b: Battle) -> void:
 		b.upgrade_palace(team)
 
 
-func _my_home() -> Vector2:
-	return Vector2.ZERO
+## Simultaneous turns: the computer decides everything for the coming turn
+## at once (summons, spells, powers, army orders), without seeing the
+## player's plan.
+func plan_turn(b: Battle) -> void:
+	if b.is_over():
+		return
+	_summon(b)
+	if level >= 2:
+		_summon(b)
+	if level > 0:
+		_spells(b)
+		_powers(b)
+	_army(b)
+	if level > 0 and b.energy[team] >= 16.0 and b.palace_upgrade_cost(team) > 0:
+		b.upgrade_palace(team)
 
 
 func _summon(b: Battle) -> void:

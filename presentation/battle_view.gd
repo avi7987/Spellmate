@@ -157,6 +157,72 @@ func hide_target_circle() -> void:
 	_target_circle.visible = false
 
 
+var _range_circle: MeshInstance3D
+
+
+## A thin circle around a hero showing how far its power reaches.
+func show_range_circle(center: Vector2, radius: float) -> void:
+	if _range_circle == null:
+		_range_circle = MeshInstance3D.new()
+		var t := TorusMesh.new()
+		t.inner_radius = 0.97
+		t.outer_radius = 1.0
+		t.rings = 64
+		_range_circle.mesh = t
+		_range_circle.material_override = Style.glow(Color(1.0, 0.9, 0.6), 1.0)
+		_range_circle.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_range_circle)
+	_range_circle.visible = true
+	_range_circle.position = to_world(center) + Vector3(0, 0.07, 0)
+	_range_circle.scale = Vector3(radius, 0.3, radius)
+
+
+func hide_range_circle() -> void:
+	if _range_circle != null:
+		_range_circle.visible = false
+
+
+## A planned card or power: a pulsing ring with a label until the turn starts.
+func plan_marker(pos: Vector2, radius: float, color: Color, text: String) -> Node3D:
+	var root := Node3D.new()
+	root.position = to_world(pos) + Vector3(0, 0.08, 0)
+	add_child(root)
+	var ring := MeshInstance3D.new()
+	var t := TorusMesh.new()
+	t.inner_radius = 0.9
+	t.outer_radius = 1.0
+	t.rings = 48
+	ring.mesh = t
+	ring.scale = Vector3(radius, 0.4, radius)
+	ring.material_override = Style.glow(color, 1.6)
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(ring)
+	var disc := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = 0.01
+	disc.mesh = c
+	disc.material_override = Style.overlay(Color(color.r, color.g, color.b, 0.18))
+	root.add_child(disc)
+	var l := Label3D.new()
+	l.text = text
+	l.font = UiKit.FONT_BOLD
+	l.font_size = 46
+	l.outline_size = 12
+	l.outline_modulate = UiKit.OUTLINE
+	l.modulate = UiKit.CREAM
+	l.pixel_size = 0.008
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.position = Vector3(0, 1.0, 0)
+	root.add_child(l)
+	var tw := ring.create_tween().set_loops()
+	tw.tween_property(ring, "scale", Vector3(radius * 1.08, 0.4, radius * 1.08), 0.5)
+	tw.tween_property(ring, "scale", Vector3(radius, 0.4, radius), 0.5)
+	return root
+
+
 ## A little arrow/ring where the player sent units.
 func order_marker(pos: Vector2, attack: bool) -> void:
 	Effects.ring(_fx_root, to_world(pos) + Vector3(0, 0.08, 0), Color(1, 0.3, 0.2) if attack else Color(0.5, 1.0, 0.5), 0.6, 0.45)

@@ -19,9 +19,11 @@ func _init() -> void:
 		ais[0]._rng.seed = 100 + g
 		var stats := { "spawn": 0, "death": 0, "ability": 0, "spell": 0, "energy": 0, "breach": 0 }
 		while not b.is_over():
+			# simultaneous turns: both plan, then 5 seconds of action
 			for ai in ais:
-				ai.think(b)
-			b.step(0.1)
+				ai.plan_turn(b)
+			for i in 50:
+				b.step(0.1)
 			for e in b.take_events():
 				if stats.has(e["type"]):
 					stats[e["type"]] += 1
