@@ -563,6 +563,8 @@ func _damage(t: BUnit, amount: float, by: BUnit, quiet: bool = false) -> void:
 	t.hp -= amount
 	if by != null:
 		t.last_hit_team = by.team
+		t.last_hit_id = by.id
+		t.last_hit_kind = by.kind
 	if not quiet or int(time * 4) != int((time - TICK) * 4):
 		events.append({ "type": "damage", "id": t.id, "amount": amount, "hp": t.hp })
 	# a hero that gets hit while idle fights back
@@ -588,7 +590,10 @@ func _die(u: BUnit) -> void:
 	units.erase(u)
 	_by_id.erase(u.id)
 	_release_mine(u)
-	events.append({ "type": "death", "id": u.id, "kind": u.kind, "team": u.team, "pos": u.pos, "by": u.last_hit_team })
+	var killer := unit(u.last_hit_id)
+	events.append({ "type": "death", "id": u.id, "kind": u.kind, "team": u.team, "pos": u.pos, "by": u.last_hit_team,
+		"killer": u.last_hit_kind, "killer_id": u.last_hit_id, "max_hp": u.max_hp,
+		"killer_hp": killer.hp / killer.max_hp if killer != null else 1.0, "terrain": terrain_at(u.cell()) })
 	if u.team == NEUTRAL and u.last_hit_team in [0, 1]:
 		var r: Dictionary = BattleData.biomes().get("monster_reward", {})
 		_add_energy(u.last_hit_team, float(r.get("energy", 6)), null)

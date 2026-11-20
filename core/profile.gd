@@ -17,6 +17,10 @@ var collection: Array = []         ## cards the player owns
 var deck: Array = []               ## 8 card ids
 var chests: Array = []             ## chest types waiting to be opened
 var tutorial_done := false
+## Daily quests: [{ id, goal, progress, gold, claimed }], refreshed every day.
+var quests: Array = []
+var quests_day := ""
+var _worlds_today: Array = []
 var settings := { "music": 0.45, "sfx": 0.8, "map": "small" }
 
 
@@ -53,6 +57,11 @@ static func load_or_new(path: String = SAVE_PATH) -> Profile:
 		if d.has(key) and d[key] is Array:
 			p.set(key, d[key])
 	p.tutorial_done = bool(d.get("tutorial_done", false))
+	if d.get("quests", null) is Array:
+		p.quests = d["quests"]
+	p.quests_day = str(d.get("quests_day", ""))
+	if d.get("worlds_today", null) is Array:
+		p._worlds_today = d["worlds_today"]
 	for k in p.heroes:
 		p.heroes[k]["level"] = int(p.heroes[k]["level"])
 		p.heroes[k]["xp"] = int(p.heroes[k]["xp"])
@@ -62,10 +71,67 @@ static func load_or_new(path: String = SAVE_PATH) -> Profile:
 func save(path: String = SAVE_PATH) -> void:
 	var d := { "gold": gold, "trophies": trophies, "wins": wins, "losses": losses, "buildings": buildings,
 		"decorations": decorations, "heroes": heroes, "collection": collection, "deck": deck,
-		"chests": chests, "tutorial_done": tutorial_done, "settings": settings }
+		"chests": chests, "tutorial_done": tutorial_done, "settings": settings,
+		"quests": quests, "quests_day": quests_day, "worlds_today": _worlds_today }
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(d, "\t"))
+
+
+# ------------------------------------------------------------------ daily quests
+
+## New quests every day (3 different ones). `today` lets tests pick a day.
+func refresh_quests(today: String = "", rng: RandomNumberGenerator = null) -> void:
+	if today == "":
+		today = Time.get_date_string_from_system()
+	if today == quests_day and not quests.is_empty():
+		return
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.seed = hash(today)
+	quests_day = today
+	_worlds_today = []
+	var pool: Array = meta()["quests"].duplicate()
+	quests = []
+	for i in int(meta().get("quests_per_day", 3)):
+		var q: Dictionary = pool.pop_at(rng.randi() % pool.size())
+		quests.append({ "id": q["id"], "goal": rng.randi_range(int(q["goal"][0]), int(q["goal"][1])),
+			"progress": 0, "gold": int(q["gold"]), "claimed": false })
+
+
+static func quest_text(q: Dictionary) -> String:
+	for m in meta()["quests"]:
+		if m["id"] == q["id"]:
+			return String(m["text"]) % int(q["goal"])
+	return ""
+
+
+func _quest_progress(result: Dictionary) -> void:
+	var world: String = result.get("world", "")
+	if world != "" and not _worlds_today.has(world):
+		_worlds_today.append(world)
+	for q in quests:
+		var add := 0
+		match q["id"]:
+			"win": add = 1 if result.get("won", false) else 0
+			"worlds": q["progress"] = _worlds_today.size()
+			_: add = int(result.get(q["id"], 0))
+		q["progress"] = mini(int(q["goal"]), int(q["progress"]) + add)
+
+
+func claim_quest(i: int) -> int:
+	if i < 0 or i >= quests.size():
+		return 0
+	var q: Dictionary = quests[i]
+	if q["claimed"] or int(q["progress"]) < int(q["goal"]):
+		return 0
+	q["claimed"] = true
+	gold += int(q["gold"])
+	return int(q["gold"])
+
+
+func quests_ready() -> int:
+	return quests.filter(func(q): return not q["claimed"] and int(q["progress"]) >= int(q["goal"])).size()
 
 
 # ------------------------------------------------------------------ arenas
@@ -199,6 +265,9 @@ func apply_battle(result: Dictionary, rng: RandomNumberGenerator = null) -> Dict
 	if rng == null:
 		rng = RandomNumberGenerator.new()
 		rng.randomize()
+	if not result.get("quit", false):
+		refresh_quests()
+		_quest_progress(result)
 	var key := "win" if result.get("won", false) else ("draw" if result.get("draw", false) else "loss")
 	var r: Dictionary = meta()["rewards"][key]
 	var k: float = meta()["rewards"]["size_bonus"].get(result.get("size", "small"), 1.0)

@@ -402,6 +402,23 @@ func show_turn_summary(n: int, s: Dictionary, b: Battle) -> void:
 	tw.tween_property(_summary, "modulate:a", 0.0, 0.6)
 
 
+var _fade: ColorRect
+
+
+## Fades the whole screen to black (alpha 1) or back (0).
+func fade(alpha: float, duration: float) -> void:
+	if _fade == null:
+		_fade = ColorRect.new()
+		_fade.color = Color(0, 0, 0, 0)
+		_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fade.z_index = 20
+		_root.add_child(_fade)
+	var tw := _fade.create_tween()
+	tw.tween_property(_fade, "color:a", alpha, duration)
+	await tw.finished
+
+
 func _build_cinema() -> void:
 	for top in [true, false]:
 		var r := ColorRect.new()
@@ -504,14 +521,15 @@ func refresh(bs: BattleScreen) -> void:
 		BattleScreen.Phase.PLAN:
 			_phase_label.text = "תכנון · הזמן עוצר"
 			_phase_bar.value = 0.0
-		BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE:
+		BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE, BattleScreen.Phase.ARENA:
 			_phase_label.text = "⚔ פעולה!" + (" ×2.5" if bs.speed > 1.0 else "")
 			_phase_bar.value = 1.0 - bs._turn_left / BattleScreen.TURN_SECONDS
 		_:
 			_phase_label.text = ""
 	_speed_btn.text = "▶ רגיל" if bs.speed > 1.0 else "⏩ מהר"
 	_execute.visible = planning
-	_action_box.visible = bs.phase in [BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE]
+	_action_box.visible = bs.phase in [BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE, BattleScreen.Phase.ARENA]
+	_action_box.modulate.a = 1.0
 	for i in cards.size():
 		var c: BattleCard = cards[i]
 		var wait := battle.card_wait(viewer, i)

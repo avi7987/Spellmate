@@ -20,6 +20,8 @@ var from_card := ""          ## the deck card this hero came from ("" = free uni
 var heal: float = 0.0        ## healers heal instead of hitting
 var home := Vector2.ZERO      ## neutral monsters guard this spot
 var last_hit_team := -1       ## who hit it last (monster rewards)
+var last_hit_id := -1         ## the unit that hit it last (arena scenes)
+var last_hit_kind := ""
 var flying := false
 var data: Dictionary = {}
 

@@ -117,6 +117,7 @@ func start_battle(size: String, autoplay: bool = false, biome: String = "") -> v
 	var bs := BattleScreen.new()
 	bs.camera_rig = camera_rig
 	_swap(bs)
+	bs.scene_mode = profile.settings.get("scenes", "always")
 	bs.start(size, profile.deck, profile.levels(), profile.enemy_deck(rng), int(arena["ai"]), ai_levels, biome)
 	bs.battle.apply_bonuses(0, profile.palace_bonus(), profile.start_energy_bonus())
 	if autoplay:

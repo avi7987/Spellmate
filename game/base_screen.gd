@@ -39,6 +39,7 @@ var _panel_holder: Control
 var _panel: Control
 var _chest_btn: Button
 var _size_btns: Dictionary = {}
+var _quest_btn: Button
 var _nodes: Dictionary = {}       ## building id -> Node3D (for clicking)
 var _walkers: Array = []
 var _orbit := 0.0
@@ -48,6 +49,7 @@ var _deck_slot := -1
 
 func open() -> void:
 	profile = app.profile
+	profile.refresh_quests()
 	_world = Node3D.new()
 	add_child(_world)
 	_cam = Camera3D.new()
@@ -282,6 +284,11 @@ func _build_ui() -> void:
 		b.custom_minimum_size = Vector2(124 if t[0].length() < 10 else 170, 62)
 		b.pressed.connect(func(): Sfx.play("click"); t[1].call())
 		bottom.add_child(b)
+	_quest_btn = UiKit.button("📜 משימות", UiKit.BUTTON_GREEN, 20)
+	_quest_btn.custom_minimum_size = Vector2(150, 62)
+	_quest_btn.size_flags_vertical = Control.SIZE_SHRINK_END
+	_quest_btn.pressed.connect(func(): Sfx.play("click"); _open(_quests_panel()))
+	bottom.add_child(_quest_btn)
 	_chest_btn = UiKit.button("🎁 תיבות", UiKit.BUTTON_PURPLE, 20)
 	_chest_btn.custom_minimum_size = Vector2(140, 62)
 	_chest_btn.size_flags_vertical = Control.SIZE_SHRINK_END
@@ -317,6 +324,8 @@ func _refresh() -> void:
 	var a := profile.arena()
 	_trophies.text = "🏆 %d · %s" % [profile.trophies, a["name"]]
 	_chest_btn.text = "🎁 תיבות (%d)" % profile.chests.size()
+	var ready := profile.quests_ready()
+	_quest_btn.text = "📜 משימות" + (" (%d!)" % ready if ready > 0 else "")
 
 
 
@@ -627,6 +636,48 @@ func _open_chest(idx: int) -> void:
 		t2.tween_callback(chest.queue_free)
 
 
+# ---------------------------------------------------------------- daily quests
+
+func _quests_panel() -> Control:
+	var f := _frame("משימות יומיות", UiKit.GOOD, 700)
+	var v: VBoxContainer = f[1]
+	v.add_child(UiKit.label("כל יום יש משימות חדשות. השלימו אותן וקבלו זהב!", 18, UiKit.TEXT_SOFT))
+	for i in profile.quests.size():
+		var q: Dictionary = profile.quests[i]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var t := UiKit.label(Profile.quest_text(q), 22, UiKit.TEXT, 700)
+		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		col.add_child(t)
+		var bar := ProgressBar.new()
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(320, 18)
+		bar.max_value = float(q["goal"])
+		bar.value = float(q["progress"])
+		col.add_child(bar)
+		col.add_child(UiKit.label("%d מתוך %d" % [int(q["progress"]), int(q["goal"])], 15, UiKit.TEXT_SOFT))
+		row.add_child(col)
+		var done: bool = int(q["progress"]) >= int(q["goal"])
+		var b: Button
+		if q["claimed"]:
+			b = UiKit.button("✔ התקבל", UiKit.BUTTON_GREY, 18)
+			b.disabled = true
+		else:
+			b = UiKit.button("לקבל · 🪙 %d" % int(q["gold"]), UiKit.BUTTON_GREEN if done else UiKit.BUTTON_STEEL, 18)
+			b.disabled = not done
+			b.pressed.connect(func():
+				if profile.claim_quest(i) > 0:
+					Sfx.play("reward")
+					profile.save()
+					_reopen(_quests_panel))
+		b.custom_minimum_size = Vector2(170, 56)
+		row.add_child(b)
+		v.add_child(row)
+	return f[0]
+
+
 # ---------------------------------------------------------------- choose a world
 
 ## Before a battle: pick the world (biome) and the map size.
@@ -799,6 +850,20 @@ func _settings_panel() -> Control:
 			s[2].call(x)
 			app.save_settings())
 		v.add_child(sl)
+	v.add_child(UiKit.label("סצנות קרב בזירה", 20))
+	var srow := HBoxContainer.new()
+	srow.alignment = BoxContainer.ALIGNMENT_CENTER
+	for m in [["always", "בכל תור"], ["important", "רק חשובות"], ["never", "אף פעם"]]:
+		var on: bool = profile.settings.get("scenes", "always") == m[0]
+		var sb := UiKit.button(m[1], UiKit.BUTTON_RED if on else UiKit.BUTTON_STEEL, 17)
+		sb.custom_minimum_size = Vector2(130, 46)
+		sb.pressed.connect(func():
+			profile.settings["scenes"] = m[0]
+			profile.save()
+			Sfx.play("click")
+			_reopen(_settings_panel))
+		srow.add_child(sb)
+	v.add_child(srow)
 	var tut := UiKit.button("לשחק שוב את קרב ההדרכה", UiKit.BUTTON_STEEL, 18)
 	tut.pressed.connect(func(): app.start_tutorial())
 	v.add_child(tut)

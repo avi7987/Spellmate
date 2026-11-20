@@ -6,9 +6,18 @@ with right click, plans cards and powers), then "בצע!" - the computer plans a
 without seeing the player's plan, and both sides act together for 5 s (fast / skip buttons,
 a short slow-motion cinematic on big moments), then a turn summary. Under the hood the battle
 engine is real-time; turns are made by BattleScreen stepping it 5 s at a time.
-Sun Kingdom (team 0, bottom) vs Void Kingdom (team 1, top). Each side has a walled palace
-(gate + 2 towers) with its king inside. Deck of 8 cards (heroes + spells), hero powers.
-Energy only from miners at crystal mines. Kill the enemy king to win.
+Sun Kingdom (team 0, bottom) vs Void Kingdom (team 1, top); neutral monsters are team 2.
+Each side has a walled palace (gate + 2 towers) with its king inside. Deck of 8 cards
+(heroes + spells); a hero card can be played again and again (1 turn recharge, energy is the
+limit, max 15 heroes on the field). Hero powers. Energy from miners at crystal mines (plus the
+magic well, treasure chests and monster rewards). Kill the enemy king to win.
+WORLDS (biomes, `data/biomes.json`), chosen before a battle: meadow, swamp (mud slows), fire
+(lava burns, lava river), ice (slides fast), desert (deep sand), candy (sugar rage), mushrooms
+(spores heal). Every map: special ground, small lakes, shrines (healing spring, power stone,
+magic well), treasure chest pairs every 25 s, two monster camps in the middle.
+When a hero defeats a hero, an ARENA scene (`combat/battle_arena.gd`, built from the world and
+square where it happened) plays once per turn (setting: always / important / never).
+Daily quests in the village; the enemy king taunts the player.
 Between battles: a 3D base village (buildings unlock heroes), hero levels, deck, chests, trophies, arenas.
 Design doc (Hebrew GDD): https://claude.ai/artifact/HXu7MHfE4DuFUTcmkgh3To
 The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebrew.
@@ -21,14 +30,19 @@ The owner wants many questions (in Hebrew, with many options) before big changes
   screen; AStarGrid2D per team: enemy gates/walls block), `BattleAI` (plan_turn() once per
   turn; think() for real-time use), `BattleData`.
 - `core/profile.gd` – progress between battles (gold, trophies, buildings, hero levels/xp, deck,
-  chests), saved to user://profile.json. `core/chess.gd` = Terrain enum + team constants only.
+  chests, daily quests, settings: world, map size, arena scenes), saved to user://profile.json. `core/chess.gd` = Terrain enum + team constants only.
 - `game/app.gd` – main scene (`scenes/app.tscn`): world light, camera, switches screens.
   `BattleScreen` (turn phases PLAN/ACTION/SCENE, the plan list of cards/powers with reserved
   energy, input -> orders, sounds, voices), `BaseScreen` (village + panels + hero book),
   `TutorialGuide` (first battle, AI level 0 only defends).
-- `presentation/` – `BattleView` (only reads Battle; units, structures, shots, spell fx, fog),
-  `UnitView`, `TerrainView` (MultiMesh tiles), `PieceModelFactory` (models from
-  `data/characters.json`: model, show, attach props to bones, tint, shape extras), `Portraits`
+- `combat/` – `BattleArena` (duel scene far below the map, own camera, health bars
+  `BattleHealthBar`, set built from the world + terrain of the fight).
+- `presentation/` – `BattleView` (only reads Battle; units, structures, shrines, treasure,
+  shots, spell fx, fog),
+  `UnitView`, `TerrainView` (MultiMesh tiles in the world's colours, world props: trees, dead
+  trees, fire rocks, snowy pines, cacti, lollipops, glowing mushrooms), `PieceModelFactory` (models from
+  `data/characters.json`: model, show, attach props to bones, tint, shape extras; shape-built
+  dragon, ballista and the 7 world monsters), `Portraits`
   (renders hero pictures for cards), `Style` (all colours), `CameraRig`, `Effects`.
 - `ui/` – `BattleHud` (turn strip, wax seal "בצע!", hero info page, turn summary, cinema bars,
   help page), `BattleCard`, `ResultsPanel`, `HeroTexts` (all Hebrew hero/spell/power text, funny
@@ -46,14 +60,18 @@ The owner wants many questions (in Hebrew, with many options) before big changes
 ## Data
 - `data/heroes.json` (hp, dmg, rate, range, speed, cost, role, ability), `data/spells.json`,
   `data/battle.json` (energy, structures, palace upgrades, map sizes + time limits),
-  `data/meta.json` (buildings, unlocks, rewards, chests, arenas), `data/characters.json` (looks).
+  `data/meta.json` (buildings, unlocks, rewards, chests, arenas, quests), `data/characters.json`
+  (looks), `data/biomes.json` (worlds, monsters, shrines, treasure).
 - Ability/spell types are generic: area_damage, area_heal, area_buff, dash, wall; effects
   freeze, stun, slow, burn, shield, rage. A new power = data only, plus Hebrew text in HeroTexts.
 
 ## Rules decisions
 - King is untargetable until his gate or a tower falls. A fallen tower leaves a breach.
-- Hero card: once per life; after death it returns after 8 + 2*cost s. Spells have a cooldown.
-  The screen shows waits in turns (seconds / 5).
+- Hero card: any number of times; after each use it recharges 5 s (one turn). Max 15 heroes.
+  Spells have a cooldown. The screen shows waits in turns (seconds / 5).
+- Units act in an order that alternates every tick (otherwise the side that acts second always
+  wins equal fights - this was a real bias, keep it). Towers ignore neutral monsters; monsters
+  guard their camp (aggro 2.6 from home, leash 5.5) and give energy + gold to whoever kills them.
 - Heroes without orders fight nearby enemies on their own (owner's choice); move orders persist.
 - Heroes: idle ones fight enemies within range+2.5; on a move order they only hit what is in
   reach; healers heal; miners walk to the nearest free mine. If a side has no miner, the palace
@@ -80,7 +98,8 @@ xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd --
 xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd -- out.png 5 --base rich panel=book:dragon
 xvfb-run -a godot --rendering-driver opengl3 --script res://tools/hero_lineup.gd -- out.png both
 python3 tools/make_sounds.py && python3 tools/make_music.py   # regenerate sounds and music
-python3 tools/make_ui_textures.py                            # parchment / leather / wax textures
+xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd -- out.png 4 --battle medium --world fire   # a world
+xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd -- out.png 5 --base panel=world      # also: quests, deck, heroes, book:<id>
 ```
 A GDScript parse error makes `godot --script` hang: redirect output to a file and use `timeout`.
 CI (`.github/workflows/web.yml`) runs the tests and publishes the web build to GitHub Pages.

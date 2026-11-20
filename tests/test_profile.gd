@@ -125,3 +125,25 @@ func test_enemy_deck_is_valid() -> void:
 		check(d.has("miner"), "computer has a miner")
 		for c in d:
 			check(not BattleData.card(c).is_empty(), "known card " + c)
+
+
+func test_daily_quests() -> void:
+	var p := Profile.new_profile()
+	p.refresh_quests("2026-01-01", _rng())
+	check_eq(p.quests.size(), 3, "3 quests")
+	var ids := p.quests.map(func(q): return q["id"])
+	check_eq(ids.size(), 3, "different quests")
+	for q in p.quests:
+		check(Profile.quest_text(q) != "", "has text")
+	# finish all quests with a huge result
+	for i in 3:
+		p.apply_battle({ "won": true, "size": "small", "world": ["meadow", "fire", "ice"][i], "spells": 9, "summons": 30,
+			"monsters": 3, "treasures": 5, "structures": 5, "powers": 9 }, _rng())
+	p.quests_day = "2026-01-01"   # (apply_battle refreshes for the real date)
+	check(p.quests_ready() >= 1, "quests done")
+	var g := p.gold
+	var got := p.claim_quest(0)
+	check(got > 0 and p.gold == g + got, "reward")
+	check_eq(p.claim_quest(0), 0, "only once")
+	p.refresh_quests("2026-01-02", _rng())
+	check(not p.quests[0]["claimed"], "new day, new quests")

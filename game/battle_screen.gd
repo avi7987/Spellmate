@@ -23,7 +23,7 @@ signal finished(result: Dictionary)
 const TURN_SECONDS := 5.0
 const SCENE_SECONDS := 1.8
 
-enum Phase { PLAN, ACTION, SCENE, OVER }
+enum Phase { PLAN, ACTION, SCENE, ARENA, OVER }
 
 var battle: Battle
 var view: BattleView
@@ -45,13 +45,16 @@ var _target_unit := -1
 var _drag_from := Vector2.ZERO
 var _dragging := false
 var _size := "small"
-var _stats := { "kills": 0, "lost": 0, "structures": 0, "spells": 0, "powers": 0 }
+var _stats := { "kills": 0, "lost": 0, "structures": 0, "spells": 0, "powers": 0, "monsters": 0, "treasures": 0 }
 var _turn_stats := {}
 var _turn_left := 0.0
 var _scene_used := false
 var _scene_left := 0.0
 var _talk_cooldown := 0.0
 var _turns_done := 0
+var arena: BattleArena
+var scene_mode := "always"          ## arena scenes: always (once a turn) / important / never
+var _arena_used := false
 
 
 func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}, biome: String = "meadow") -> void:
@@ -62,6 +65,8 @@ func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_lev
 	view.camera_rig = camera_rig
 	add_child(view)
 	view.setup(battle, 0)
+	arena = BattleArena.new()
+	add_child(arena)
 	hud = BattleHud.new()
 	add_child(hud)
 	hud.setup(battle, 0)
@@ -93,6 +98,8 @@ func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_lev
 
 func _begin_plan() -> void:
 	phase = Phase.PLAN
+	if turn % 3 == 2 or _king_hurt_new():
+		_taunt()
 	speed = 1.0
 	hud.set_phase(phase, turn, 0.0)
 	hud.set_hint("בחרו גיבורים ושלחו אותם בלחצן ימני, הוסיפו קלפים וכוחות, ואז לחצו על 'בצע!'", 0.0)
@@ -126,6 +133,7 @@ func execute_turn() -> void:
 	_turn_stats = { "kills": 0, "lost": 0, "energy": 0.0, "damage_done": 0.0, "damage_taken": 0.0, "structures": [] }
 	_turn_left = TURN_SECONDS
 	_scene_used = false
+	_arena_used = false
 	phase = Phase.ACTION
 	hud.set_hint("")
 	Sfx.play("horn", 0.6)
@@ -134,6 +142,9 @@ func execute_turn() -> void:
 
 ## Fast-forward to the end of the turn at once.
 func skip_turn() -> void:
+	if phase == Phase.ARENA:
+		arena.skip()
+		return
 	if phase != Phase.ACTION and phase != Phase.SCENE:
 		return
 	_end_scene()
@@ -261,6 +272,29 @@ func _maybe_scene(pos: Vector2, title: String) -> void:
 		tutorial.visible = false
 
 
+## A hero defeated another hero: cut to the arena and show the duel.
+func _maybe_arena(e: Dictionary) -> void:
+	if _arena_used or phase != Phase.ACTION or scene_mode == "never" or e.get("killer", "") == "":
+		return
+	var killer := battle.unit(e.get("killer_id", -1))
+	if killer == null or killer.structure or e["kind"] == "king":
+		return
+	if not (battle.is_visible(0, e["pos"]) or e["team"] == 0 or killer.team == 0):
+		return
+	if scene_mode == "important":
+		var big := ["queen", "dragon", "giant", "ballista", "knight", "assassin"]
+		if not (big.has(e["kind"]) or big.has(killer.kind) or e["team"] == Battle.NEUTRAL):
+			return
+	_arena_used = true
+	phase = Phase.ARENA
+	Music.play("battle")
+	await arena.play(e, battle.world, killer.team, hud)
+	camera_rig.make_current()
+	await hud.fade(0.0, 0.3)
+	if phase == Phase.ARENA:
+		phase = Phase.ACTION
+
+
 func _end_scene() -> void:
 	if phase != Phase.SCENE:
 		return
@@ -294,8 +328,7 @@ func _react(events: Array) -> void:
 						_stats["structures"] += 1
 				elif e["kind"] != "wall":
 					Sfx.play("poof", 0.5)
-					if battle.card_cost(e["kind"]) >= 6:
-						_maybe_scene(e["pos"], "נפילת %s!" % HeroTexts.name_of(e["kind"]))
+					_maybe_arena(e)
 			"attack":
 				var a := battle.unit(e["id"])
 				if a != null and (a.team == 0 or battle.is_visible(0, a.pos)):
@@ -319,6 +352,8 @@ func _react(events: Array) -> void:
 				if e["team"] == 0 and e["id"] >= 0:
 					Sfx.play("coin", 0.25)
 			"treasure":
+				if e["team"] == 0:
+					_stats["treasures"] += 1
 				Sfx.play("chest")
 				hud.flash("מצאתם אוצר! +4 אנרגיה" if e["team"] == 0 else "האויב מצא אוצר", UiKit.GOLD if e["team"] == 0 else Color(0.8, 0.6, 1.0), 0.8)
 			"treasure_spawn":
@@ -326,6 +361,8 @@ func _react(events: Array) -> void:
 					hud.flash("תיבות אוצר הופיעו במפה!", UiKit.GOLD, 0.8)
 					Sfx.play("reward", 0.6)
 			"monster_slain":
+				if e["team"] == 0:
+					_stats["monsters"] += 1
 				Sfx.play("fanfare" if e["team"] == 0 else "crash", 0.5)
 				hud.flash("הבסתם את %s! +6 אנרגיה" % BattleData.biomes()["monsters"][e["kind"]]["name"] if e["team"] == 0 else "האויב הביס מפלצת", UiKit.GOLD, 1.0)
 			"upgrade":
@@ -351,6 +388,35 @@ func _power_sound(e: Dictionary) -> String:
 	if id in ["mass_heal", "heal_potion"]:
 		return "heal"
 	return "power"
+
+
+var _king_hp_seen := -1.0
+
+
+func _king_hurt_new() -> bool:
+	var k := battle.king(1)
+	if k == null:
+		return false
+	var hurt := _king_hp_seen >= 0.0 and k.hp < _king_hp_seen - 1.0
+	_king_hp_seen = k.hp
+	return hurt
+
+
+## The enemy king shouts something at the player from his palace.
+func _taunt() -> void:
+	var k := battle.king(1)
+	if k == null or not view.view(k.id):
+		return
+	var exposed := battle.king_exposed(1) or k.hp < k.max_hp
+	var lines: Array = HeroTexts.TAUNTS_HURT if exposed else HeroTexts.TAUNTS
+	var cam := get_viewport().get_camera_3d()
+	var p := cam.unproject_position(view.view(k.id).global_position + Vector3(0, 2.4, 0))
+	var vs := get_viewport().get_visible_rect().size
+	# if the king is off screen, the bubble shows at the top of the screen
+	if p.x < 0 or p.y < 0 or p.x > vs.x or p.y > vs.y:
+		p = Vector2(vs.x * 0.5, 170)
+	hud.speech(p, "👑 " + String(lines[randi() % lines.size()]))
+	Voice.babble("king", 5)
 
 
 ## A hero says one of its funny lines (speech bubble + gibberish voice).
@@ -386,7 +452,7 @@ func _finish(winner: int, quit: bool) -> void:
 		hud.flash("הפסד", Color(1, 0.45, 0.35), 2.0)
 		Sfx.play("lose")
 	var result := { "won": won, "draw": winner == 2, "quit": quit, "time": battle.time, "size": _size, "turns": turn,
-		"bonus_gold": battle.bonus_gold[0], "world": battle.biome }
+		"bonus_gold": battle.bonus_gold[0], "world": battle.biome, "summons": battle.summons[0] }
 	result.merge(_stats)
 	await get_tree().create_timer(0.3 if quit else 2.8).timeout
 	finished.emit(result)
