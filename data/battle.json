@@ -1,19 +1,62 @@
 {
 	"_comment": "Real-time battle numbers.",
-	"energy": { "start": 5, "max": 20, "mine_interval": 2.2, "mine_amount": 1 },
-	"structures": {
-		"gate":  { "hp": 3200 },
-		"tower": { "hp": 2000, "dmg": 70, "rate": 1.0, "range": 5.0 },
-		"wall":  { "hp": 700 }
+	"energy": {
+		"start": 5,
+		"max": 20,
+		"mine_interval": 2.2,
+		"mine_amount": 1
 	},
-	"palace_upgrades": [ { "cost": 5, "bonus": 0.25 }, { "cost": 8, "bonus": 0.5 } ],
+	"structures": {
+		"gate": {
+			"hp": 4500
+		},
+		"tower": {
+			"hp": 2800,
+			"dmg": 85,
+			"rate": 1.0,
+			"range": 5.0
+		},
+		"wall": {
+			"hp": 700
+		}
+	},
+	"palace_upgrades": [
+		{
+			"cost": 5,
+			"bonus": 0.25
+		},
+		{
+			"cost": 8,
+			"bonus": 0.5
+		}
+	],
 	"level_bonus": 0.1,
 	"maps": {
-		"small":  { "w": 15, "h": 21, "fog": false },
-		"medium": { "w": 21, "h": 27, "fog": false },
-		"large":  { "w": 29, "h": 35, "fog": true }
+		"small": {
+			"w": 15,
+			"h": 21,
+			"fog": false,
+			"time": 300
+		},
+		"medium": {
+			"w": 21,
+			"h": 27,
+			"fog": false,
+			"time": 540
+		},
+		"large": {
+			"w": 29,
+			"h": 35,
+			"fog": true,
+			"time": 900
+		}
 	},
 	"vision": 6,
 	"aggro_extra": 2.5,
-	"start_army": ["queen", "miner", "soldier", "soldier"]
+	"start_army": [
+		"queen",
+		"miner",
+		"soldier",
+		"soldier"
+	]
 }

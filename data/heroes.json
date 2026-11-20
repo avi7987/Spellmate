@@ -1,6 +1,6 @@
 {
 	"_comment": "Real-time heroes. hp, dmg = damage per hit, rate = seconds between hits, range/aggro/vision in squares, speed = squares per second, cost = energy to summon, respawn = seconds until a fallen hero's card is ready again. ability = its special power (button), see core/battle/battle.gd _resolve(). unlock = building that unlocks it in the base (null = from the start).",
-	"king":      { "hp": 1600, "dmg": 60,  "rate": 1.0, "range": 1.6, "speed": 0.0, "cost": 0, "role": "king",
+	"king":      { "hp": 2400, "dmg": 80,  "rate": 1.0, "range": 1.6, "speed": 0.0, "cost": 0, "role": "king",
 		"ability": { "id": "royal_decree", "type": "area_buff", "effect": "shield", "radius": 3.0, "duration": 6.0, "cost": 3, "cooldown": 20, "self": true } },
 	"queen":     { "hp": 700,  "dmg": 90,  "rate": 1.4, "range": 4.0, "speed": 1.4, "cost": 7, "splash": 1.0, "unlock": "mage_tower",
 		"ability": { "id": "frost_nova", "type": "area_damage", "damage": 120, "effect": "freeze", "duration": 3.0, "radius": 2.2, "range": 6, "cost": 4, "cooldown": 14 } },

@@ -15,6 +15,9 @@ var range_: float = 1.2
 var speed: float = 1.5
 var level: int = 1
 var structure := false
+var radius := 0.3            ## body size: structures are bigger, so range counts from their edge
+var from_card := ""          ## the deck card this hero came from ("" = free unit)
+var heal: float = 0.0        ## healers heal instead of hitting
 var flying := false
 var data: Dictionary = {}
 

@@ -21,26 +21,33 @@ static var _materials: Dictionary = {}
 
 
 static func definition(kind: int, color: int) -> Dictionary:
+	return definition_named(KIND_NAMES[kind], color)
+
+
+static func definition_named(id: String, color: int) -> Dictionary:
 	if _defs.is_empty():
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
 		_defs = parsed if parsed is Dictionary else { "_": {} }
-	return _defs.get(TEAM_SUFFIX[color], {}).get(KIND_NAMES[kind], {})
+	return _defs.get(TEAM_SUFFIX[color], {}).get(id, {})
 
 
 static func build(kind: int, color: int) -> Node3D:
-	var def := definition(kind, color)
+	return build_hero(KIND_NAMES[kind], color)
+
+
+## Builds the model of a hero by its id in data/heroes.json ("soldier", "dragon"...).
+static func build_hero(id: String, color: int) -> Node3D:
+	var def := definition_named(id, color)
 	var path: String = def.get("model", "")
 	if path != "" and ResourceLoader.exists(path):
-		return _build_from_model(def, kind, color)
+		return _build_from_model(def, color)
 	var root := Node3D.new()
-	root.name = "Placeholder_" + KIND_NAMES[kind]
-	match kind:
-		Chess.Kind.KING: _king(root, color)
-		Chess.Kind.QUEEN: _witch(root, color)
-		Chess.Kind.ROOK: _golem(root, color)
-		Chess.Kind.BISHOP: _wizard(root, color)
-		Chess.Kind.DRAGON: _dragon(root, color)
-		Chess.Kind.BALLISTA: _ballista(root, color)
+	root.name = "Placeholder_" + id
+	match id:
+		"king": _king(root, color)
+		"queen": _witch(root, color)
+		"dragon": _dragon(root, color)
+		"ballista": _ballista(root, color)
 		_: _shieldbearer(root, color)
 	root.scale = Vector3.ONE * float(def.get("scale", 1.0))
 	root.set_meta("anims", {})
@@ -48,15 +55,18 @@ static func build(kind: int, color: int) -> Node3D:
 	return root
 
 
-static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
+static func _build_from_model(def: Dictionary, color: int) -> Node3D:
 	var model := (load(def["model"]) as PackedScene).instantiate() as Node3D
 	var shown: Array = def.get("show", [])
-	var mat := _team_material(def, color)
+	var tint := Color.html(def.get("tint", "#ffffff"))
+	var mat := _team_material(def.get("texture", ""), color, def.get("king_texture", false), tint)
 	for a in def.get("attach", []):
-		_attach_prop(model, a.get("model", ""), a.get("bone", ""))
+		_attach_prop(model, a.get("model", ""), a.get("bone", ""), _team_material(a.get("texture", ""), color, false, tint))
 	var eyes := Style.glow(Style.team(color)["rune"], 3.0)
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var is_prop: bool = mi.get_parent() is BoneAttachment3D and not mi.has_meta("attached")
+		if mi.has_meta("attached"):
+			continue
+		var is_prop: bool = mi.get_parent() is BoneAttachment3D
 		mi.visible = not is_prop or shown.has(String(mi.name))
 		if def.get("glow_eyes", false) and String(mi.name).ends_with("Eyes"):
 			mi.material_override = eyes
@@ -64,6 +74,8 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 			mi.material_override = mat
 	if def.get("crown", false):
 		_add_crown(model, color)
+	for e in def.get("extras", []):
+		_add_extra(model, String(e), color)
 	var s := float(def.get("scale", 0.5))
 	model.scale = Vector3.ONE * s
 	var anims := {}
@@ -77,41 +89,50 @@ static func _build_from_model(def: Dictionary, kind: int, color: int) -> Node3D:
 
 
 ## Puts an extra prop (weapon, shield...) on a bone, e.g. "handslot.r".
-static func _attach_prop(model: Node3D, path: String, bone: String) -> void:
+static func _attach_prop(model: Node3D, path: String, bone: String, mat: Material) -> void:
 	if not ResourceLoader.exists(path):
 		return
-	var skel: Skeleton3D = null
-	var found := model.find_children("*", "Skeleton3D", true, false)
-	if found.is_empty():
+	var att := _bone(model, bone)
+	if att == null:
 		return
-	skel = found[0]
-	if skel.find_bone(bone) < 0:
-		return
-	var att := BoneAttachment3D.new()
-	att.bone_name = bone
-	skel.add_child(att)
 	var prop := (load(path) as PackedScene).instantiate() as Node3D
 	att.add_child(prop)
 	for mi in prop.find_children("*", "MeshInstance3D", true, false) + ([prop] if prop is MeshInstance3D else []):
 		mi.set_meta("attached", true)
+		if mat != null:
+			mi.material_override = mat
 
 
-## One shared material per (texture, team): toon shading + outline, like the rest of the game.
-static func _team_material(def: Dictionary, color: int) -> Material:
-	var tex_name: String = def.get("texture", "")
+## A BoneAttachment3D on the named bone (reuses one if it exists).
+static func _bone(model: Node3D, bone: String) -> BoneAttachment3D:
+	for b in model.find_children("*", "BoneAttachment3D", true, false):
+		if b.bone_name == bone:
+			return b
+	var skels := model.find_children("*", "Skeleton3D", true, false)
+	if skels.is_empty() or skels[0].find_bone(bone) < 0:
+		return null
+	var att := BoneAttachment3D.new()
+	att.bone_name = bone
+	skels[0].add_child(att)
+	return att
+
+
+## One shared material per (texture, team, tint): toon shading + outline, like the rest of the game.
+static func _team_material(tex_name: String, color: int, king: bool = false, tint: Color = Color.WHITE) -> Material:
 	if tex_name == "":
 		return null
 	var suffix: String = TEAM_SUFFIX[color]
-	if def.get("king_texture", false):
+	if king:
 		suffix += "_king"
-	var folder: String = String(def["model"]).get_base_dir()
-	var tex_path := "%s/%s_%s.png" % [folder, tex_name, suffix]
-	if _materials.has(tex_path):
-		return _materials[tex_path]
+	var tex_path := "res://assets/characters/kaykit/%s_%s.png" % [tex_name, suffix]
+	var key := tex_path + tint.to_html()
+	if _materials.has(key):
+		return _materials[key]
 	if not ResourceLoader.exists(tex_path):
 		return null
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load(tex_path)
+	m.albedo_color = tint
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	m.roughness = 0.6
 	m.metallic_specular = 0.25
@@ -124,8 +145,96 @@ static func _team_material(def: Dictionary, color: int) -> Material:
 	o.set_shader_parameter("outline_color", Style.OUTLINE)
 	o.set_shader_parameter("thickness", 0.02)
 	m.next_pass = o
-	_materials[tex_path] = m
+	_materials[key] = m
 	return m
+
+
+## Accessories built from shapes so every hero type has its own silhouette.
+## Head-bone space: the top of a KayKit head is about y = 0.9; +Z is the face.
+static func _add_extra(model: Node3D, what: String, color: int) -> void:
+	var t := Style.team(color)
+	var metal := Style.metal(t["metal"])
+	var cloth := Style.cloth(t["cloth"])
+	var wood := Style.toon(Color(0.45, 0.28, 0.15), 0.0, 0.85)
+	var head := _bone(model, "head")
+	var hand_r := _bone(model, "handslot.r")
+	var hand_l := _bone(model, "handslot.l")
+	var chest := _bone(model, "chest")
+	match what:
+		"beard":
+			if head: _add(head, _cyl(0.32, 0.05, 0.5), Style.toon(Style.BEARD), Vector3(0, 0.05, 0.38), Vector3(18, 0, 0))
+		"big_beard":
+			if head:
+				_add(head, _cyl(0.32, 0.06, 0.55), Style.toon(Color(0.75, 0.35, 0.12)), Vector3(0, 0.05, 0.42), Vector3(20, 0, 0))
+		"long_hair":
+			if head: _add(head, _capsule(0.42, 1.2), Style.toon(Style.HAIR_DARK if color == 1 else Style.HAIR_GOLD), Vector3(0, 0.25, -0.25), Vector3(15, 0, 0), Vector3(1.15, 1, 0.7))
+		"tiara":
+			if head:
+				_add(head, _cyl(0.5, 0.5, 0.08), metal, Vector3(0, 0.85, 0.02))
+				for i in 3:
+					_add(head, _cyl(0.0, 0.09, 0.28 - absf(i - 1) * 0.1), metal, Vector3((i - 1) * 0.2, 1.0, 0.45))
+				_add(head, _sphere(0.08), Style.glow(Color(0.55, 0.9, 1.0), 2.0), Vector3(0, 0.95, 0.52))
+		"kettle_hat":
+			if head:
+				_add(head, _cyl(0.7, 0.7, 0.06), metal, Vector3(0, 0.95, 0))
+				_add(head, _sphere(0.5, true), metal, Vector3(0, 0.95, 0))
+		"plume":
+			if head:
+				for i in 5:
+					_add(head, _sphere(0.2 - i * 0.02), Style.cloth(Color(0.85, 0.15, 0.12)), Vector3(0, 1.3 + sin(i * 0.6) * 0.35, -0.1 - i * 0.22), Vector3.ZERO, Vector3(0.45, 1.0, 1.0))
+		"feather_hat":
+			if head:
+				_add(head, _cyl(0.75, 0.75, 0.05), cloth, Vector3(0, 0.85, 0), Vector3(-6, 0, 0))
+				_add(head, _cyl(0.4, 0.5, 0.35), cloth, Vector3(0, 1.0, 0))
+				_add(head, _box(Vector3(0.08, 0.9, 0.18)), Style.toon(Color(0.9, 0.2, 0.15)), Vector3(0.35, 1.3, -0.25), Vector3(-35, 0, -20))
+		"quiver":
+			if chest:
+				_add(chest, _cyl(0.18, 0.18, 0.9), wood, Vector3(0.15, 0.5, -0.45), Vector3(-20, 0, -15))
+				for i in 3:
+					_add(chest, _box(Vector3(0.08, 0.3, 0.02)), Style.toon(Color(0.95, 0.95, 0.9)), Vector3(0.05 + i * 0.1, 1.05, -0.6), Vector3(-20, 0, -15))
+		"pickaxe":
+			if hand_r:
+				_add(hand_r, _cyl(0.05, 0.05, 1.1), wood, Vector3(0, 0.35, 0))
+				_add(hand_r, _cyl(0.02, 0.09, 0.9), Style.metal(Color(0.7, 0.72, 0.78)), Vector3(0, 0.85, 0), Vector3(0, 0, 90), Vector3(1, 1, 0.8))
+		"mining_helmet":
+			if head:
+				_add(head, _sphere(0.62, true), Style.toon(Color(0.95, 0.75, 0.15), 0.3, 0.5), Vector3(0, 0.55, 0))
+				_add(head, _cyl(0.7, 0.7, 0.06), Style.toon(Color(0.95, 0.75, 0.15), 0.3, 0.5), Vector3(0, 0.55, 0))
+				_add(head, _cyl(0.14, 0.14, 0.12), Style.glow(Color(1.0, 0.95, 0.6), 3.0), Vector3(0, 0.85, 0.55), Vector3(90, 0, 0))
+		"crystal_sack":
+			if chest:
+				_add(chest, _sphere(0.42), Style.toon(Color(0.55, 0.42, 0.28)), Vector3(0, 0.45, -0.55))
+				for i in 3:
+					_add(chest, _cyl(0.0, 0.12, 0.45), Style.glow(Style.CRYSTAL, 1.6), Vector3(-0.15 + i * 0.15, 0.9, -0.55), Vector3(0, 0, -20 + i * 20))
+		"halo_heal":
+			if head:
+				var halo := TorusMesh.new()
+				halo.inner_radius = 0.45
+				halo.outer_radius = 0.55
+				_add(head, halo, Style.glow(Color(0.5, 1.0, 0.55), 2.2), Vector3(0, 1.45, 0))
+		"heart_orb":
+			if hand_r: _add(hand_r, _sphere(0.2), Style.glow(Color(0.45, 1.0, 0.5), 1.4), Vector3(0, 1.0, 0))
+		"orb_ice_staff":
+			if hand_r: _add(hand_r, _sphere(0.28), Style.glow(Color(0.55, 0.9, 1.0), 1.5), Vector3(0, 1.75, 0))
+		"orb_ice_hand":
+			if hand_l: _add(hand_l, _sphere(0.25), Style.glow(Color(0.6, 0.9, 1.0), 1.5), Vector3(0, 0.3, 0.1))
+		"snow_crown":
+			if head:
+				for i in 5:
+					var a := TAU * i / 5.0
+					_add(head, _cyl(0.0, 0.1, 0.45), Style.glow(Color(0.7, 0.95, 1.0), 1.4), Vector3(sin(a) * 0.45, 1.25, cos(a) * 0.45))
+		"orb_fire_hand":
+			if hand_r:
+				_add(hand_r, _sphere(0.26), Style.glow(Color(1.0, 0.5, 0.12), 1.8), Vector3(0, 0.35, 0.1))
+				_add(hand_r, _cyl(0.0, 0.2, 0.45), Style.glow(Color(1.0, 0.8, 0.25), 2.5), Vector3(0, 0.65, 0.1))
+		"flame_hat":
+			if head:
+				for i in 3:
+					_add(head, _cyl(0.0, 0.16 - i * 0.03, 0.5), Style.glow(Color(1.0, 0.45 + i * 0.15, 0.1), 2.4), Vector3((i - 1) * 0.12, 2.05, -0.55), Vector3(-45, 0, (i - 1) * -25))
+		"mask":
+			if head: _add(head, _box(Vector3(0.75, 0.2, 0.1)), Style.cloth(Color(0.08, 0.06, 0.08)), Vector3(0, 0.38, 0.5))
+		"belly":
+			if chest: _add(chest, _sphere(0.6), Style.toon(Style.SKIN), Vector3(0, 0.0, 0.25), Vector3.ZERO, Vector3(1, 0.9, 0.7))
 
 
 ## The two kingdoms' concept, shown on every unit:
