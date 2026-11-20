@@ -426,27 +426,107 @@ static func _wizard(root: Node3D, color: int) -> void:
 	_feet(root, cloth)
 
 
-## The Little Dragon (knight): chubby, big eyes, small wings, a saddle.
+## The Dragon: big, a little scary and very cute. Chunky body with belly plates,
+## a curved neck, horned head with big eyes and fangs, spikes along the back,
+## a spade-tipped tail, clawed legs and big membrane wings ("WingL"/"WingR",
+## flapped by UnitView). Sun = emerald and gold, Void = shadow purple and crimson.
 static func _dragon(root: Node3D, color: int) -> void:
-	var t := Style.team(color)
-	var skin := Style.toon(t["dragon"], 0.0, 0.6)
-	var belly := Style.toon(t["dragon"].lightened(0.45), 0.0, 0.7)
-	var metal := Style.metal(t["metal"])
-	_add(root, _sphere(0.28), skin, Vector3(0, 0.3, -0.02), Vector3.ZERO, Vector3(1, 1.05, 1.1))         # body
-	_add(root, _sphere(0.2), belly, Vector3(0, 0.3, 0.13), Vector3.ZERO, Vector3(1, 1.2, 0.6))           # belly
-	_add(root, _cyl(0.0, 0.1, 0.45), skin, Vector3(0, 0.18, -0.35), Vector3(-70, 0, 0))                  # tail
-	_add(root, _box(Vector3(0.3, 0.06, 0.24)), Style.cloth(t["cloth"]), Vector3(0, 0.54, -0.06), Vector3(-10, 0, 0))  # saddle
+	var sun := color == Chess.WHITE
+	var skin := Style.toon(Color(0.16, 0.50, 0.30) if sun else Color(0.27, 0.13, 0.36), 0.0, 0.55)
+	var skin_dark := Style.toon(Color(0.10, 0.34, 0.20) if sun else Color(0.17, 0.07, 0.24), 0.0, 0.6)
+	var belly := Style.toon(Color(0.96, 0.80, 0.42) if sun else Color(0.78, 0.20, 0.26), 0.0, 0.5)
+	var spike := Style.toon(Color(1.0, 0.78, 0.25) if sun else Color(0.85, 0.25, 0.30), 0.3, 0.4)
+	var horn := Style.toon(Color(0.98, 0.93, 0.80), 0.0, 0.4)
+	var membrane := Style.toon(Color(0.78, 0.36, 0.12) if sun else Color(0.50, 0.10, 0.28), 0.0, 0.7)
+	membrane.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var eye_glow := Color(1.0, 0.85, 0.2) if sun else Color(1.0, 0.25, 0.45)
+	# body and belly plates
+	_add(root, _sphere(0.46), skin, Vector3(0, 0.62, -0.05), Vector3.ZERO, Vector3(1.0, 0.92, 1.3))
+	_add(root, _sphere(0.4), belly, Vector3(0, 0.55, 0.12), Vector3.ZERO, Vector3(0.82, 0.85, 1.05))
+	for i in 4:
+		_add(root, _box(Vector3(0.5 - abs(i - 1.5) * 0.06, 0.035, 0.12)), Style.toon((Color(0.85, 0.65, 0.3) if sun else Color(0.6, 0.12, 0.18)), 0, 0.5, false),
+			Vector3(0, 0.4 + i * 0.12, 0.46 - i * 0.01), Vector3(-30 + i * 12, 0, 0), Vector3(0.9, 1, 0.6))
+	# legs with claws
 	for side in [-1.0, 1.0]:
-		_add(root, _box(Vector3(0.36, 0.26, 0.03)), Style.cloth(t["cloth"]), Vector3(side * 0.3, 0.52, -0.12),
-			Vector3(0, side * 30.0, side * 28.0))                                                       # wings
-		_add(root, _cyl(0.0, 0.045, 0.16), metal, Vector3(side * 0.11, 0.98, -0.04), Vector3(-20, 0, -side * 20.0))  # horns
-	_add(root, _sphere(0.23), skin, Vector3(0, 0.76, 0.02))                                              # head
-	_add(root, _sphere(0.13), belly, Vector3(0, 0.68, 0.2), Vector3.ZERO, Vector3(1.2, 0.8, 1))         # snout
+		for front in [1.0, -1.0]:
+			var lp := Vector3(side * 0.3, 0.2, front * 0.32 - 0.05)
+			_add(root, _sphere(0.17), skin, lp + Vector3(0, 0.12, 0), Vector3.ZERO, Vector3(1, 1.3, 1.1))
+			_add(root, _sphere(0.14), skin_dark, Vector3(lp.x, 0.07, lp.z + 0.05), Vector3.ZERO, Vector3(1.1, 0.6, 1.4))
+			for c in 3:
+				_add(root, _cyl(0.0, 0.035, 0.11), horn, Vector3(lp.x + (c - 1) * 0.06, 0.05, lp.z + 0.22), Vector3(90, 0, 0))
+	# neck
+	for i in 3:
+		_add(root, _sphere(0.23 - i * 0.015), skin, Vector3(0, 0.9 + i * 0.17, 0.32 + i * 0.12))
+		_add(root, _sphere(0.15), belly, Vector3(0, 0.86 + i * 0.17, 0.42 + i * 0.12), Vector3.ZERO, Vector3(1, 1, 0.6))
+	# head (named so it can lunge when breathing fire)
+	var head := Node3D.new()
+	head.name = "Head"
+	head.position = Vector3(0, 1.42, 0.68)
+	root.add_child(head)
+	_add(head, _sphere(0.3), skin, Vector3.ZERO, Vector3.ZERO, Vector3(1.05, 0.92, 1.05))
+	_add(head, _sphere(0.2), skin, Vector3(0, -0.07, 0.28), Vector3.ZERO, Vector3(1.15, 0.78, 1.25))   # snout
+	_add(head, _sphere(0.17), belly, Vector3(0, -0.15, 0.28), Vector3.ZERO, Vector3(1.0, 0.45, 1.15))   # jaw
 	for side in [-1.0, 1.0]:
-		_add(root, _sphere(0.02), Style.toon(Style.EYE_DARK, 0, 0.5, false), Vector3(side * 0.05, 0.71, 0.32))  # nostrils
-	_face(root, 0.82, 0.21)
-	_hands(root, skin, 0.3, 0.24)
-	_feet(root, skin)
+		_add(head, _sphere(0.035), Style.toon(Style.EYE_DARK, 0, 0.5, false), Vector3(side * 0.08, -0.02, 0.5))   # nostrils
+		_add(head, _cyl(0.0, 0.035, 0.1), horn, Vector3(side * 0.1, -0.2, 0.4), Vector3(180, 0, 0))        # fangs
+		# big cute eyes with a glowing ring and a determined brow
+		_add(head, _sphere(0.11), Style.toon(Style.EYE_WHITE, 0, 0.3, false), Vector3(side * 0.15, 0.08, 0.2))
+		_add(head, _sphere(0.065), Style.glow(eye_glow, 1.6), Vector3(side * 0.155, 0.08, 0.27))
+		_add(head, _sphere(0.04), Style.toon(Style.EYE_DARK, 0, 0.2, false), Vector3(side * 0.16, 0.08, 0.315), Vector3.ZERO, Vector3(0.35, 1.5, 1))
+		_add(head, _box(Vector3(0.2, 0.05, 0.08)), skin_dark, Vector3(side * 0.14, 0.17, 0.27), Vector3(0, 0, side * 28.0))
+		# curved horns: three cones bending backwards
+		for k in 3:
+			_add(head, _cyl(0.06 - k * 0.018, 0.08 - k * 0.018, 0.16), horn,
+				Vector3(side * (0.17 + k * 0.03), 0.24 + k * 0.1, -0.08 - k * 0.11), Vector3(-35 - k * 22, 0, -side * 12.0))
+		_add(head, _cyl(0.0, 0.05, 0.14), spike, Vector3(side * 0.28, 0.0, 0.0), Vector3(0, 0, -side * 75.0))   # cheek frills
+	# back spikes from neck to tail
+	for i in 7:
+		var z := 0.7 - i * 0.2
+		var y := 1.25 - i * 0.1 if i < 3 else 1.02 - (i - 3) * 0.13
+		_add(root, _cyl(0.0, 0.08 - i * 0.004, 0.2), spike, Vector3(0, y, z - 0.25), Vector3(-15, 0, 0))
+	# tail curling back, with a spade tip
+	var tail := Node3D.new()
+	tail.name = "Tail"
+	tail.position = Vector3(0, 0.55, -0.6)
+	root.add_child(tail)
+	var tp := Vector3.ZERO
+	for i in 6:
+		tp += Vector3(sin(i * 0.5) * 0.08, -0.06 + i * 0.01, -0.16)
+		_add(tail, _sphere(0.17 - i * 0.022), skin, tp)
+	var spade := _cyl(0.0, 0.16, 0.32)
+	spade.radial_segments = 4
+	_add(tail, spade, spike, tp + Vector3(0.0, 0.0, -0.2), Vector3(-90, 0, 0), Vector3(1, 1, 0.3))
+	# wings: arm bones + a scalloped membrane, pivoting at the shoulders
+	for side in [-1.0, 1.0]:
+		var wing := Node3D.new()
+		wing.name = "WingL" if side < 0 else "WingR"
+		wing.position = Vector3(side * 0.3, 1.0, -0.05)
+		root.add_child(wing)
+		var tips := [Vector3(0.95, 0.85, -0.25), Vector3(1.2, 0.3, -0.55), Vector3(0.85, -0.2, -0.75)]
+		var edge := [Vector3(0.1, 0.2, 0.0), tips[0], Vector3(0.75, 0.38, -0.42), tips[1], Vector3(0.7, 0.0, -0.6), tips[2], Vector3(0.2, -0.25, -0.5)]
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for i in edge.size() - 1:
+			for v in [Vector3.ZERO, edge[i], edge[i + 1]]:
+				st.add_vertex(Vector3(v.x * side, v.y, v.z))
+		st.generate_normals()
+		var mem := MeshInstance3D.new()
+		mem.mesh = st.commit()
+		mem.material_override = membrane
+		wing.add_child(mem)
+		for t2 in tips:
+			var tip: Vector3 = Vector3(t2.x * side, t2.y, t2.z)
+			var bone := MeshInstance3D.new()
+			bone.mesh = _cyl(0.018, 0.035, tip.length())
+			bone.material_override = skin_dark
+			bone.position = tip / 2.0
+			bone.look_at_from_position(tip / 2.0, tip, Vector3.UP if absf(tip.normalized().y) < 0.95 else Vector3.FORWARD)
+			bone.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+			wing.add_child(bone)
+			_add(wing, _cyl(0.0, 0.04, 0.12), horn, tip, Vector3(0, 0, -side * 60.0))
+		wing.rotation_degrees = Vector3(0, 0, -side * 28.0)
+		wing.scale = Vector3.ONE * 1.25
+		wing.set_meta("base_z", wing.rotation.z)
 
 
 ## The Shieldbearer (pawn): small brave soldier with a helmet and round shield.

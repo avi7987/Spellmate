@@ -135,6 +135,12 @@ func play_once(role: String) -> void:
 	if dying:
 		return
 	if _player == null or not _anims.has(role) or not _player.has_animation(_anims[role]):
+		if _head != null and role in ["attack", "cast"]:
+			# the dragon lunges its head forward
+			var th := create_tween()
+			th.tween_property(_head, "rotation_degrees:x", 25.0, 0.12)
+			th.tween_property(_head, "rotation_degrees:x", 0.0, 0.25).set_trans(Tween.TRANS_BACK)
+			return
 		var tw := create_tween()
 		tw.tween_property(_hop, "scale", Vector3(1.15, 0.85, 1.15), 0.08)
 		tw.tween_property(_hop, "scale", Vector3.ONE, 0.15)
@@ -239,7 +245,24 @@ func _set_fx(name: String, on: bool) -> void:
 	_fx[name] = mi
 
 
+var _wings: Array = []
+var _head: Node3D
+
+
 func _process(delta: float) -> void:
+	if _wings.is_empty() and _model != null:
+		for n in ["WingL", "WingR"]:
+			var w := _model.find_child(n, true, false)
+			if w != null:
+				_wings.append(w)
+		_head = _model.find_child("Head", true, false)
+	# dragons flap their wings (slower when frozen or stunned: they do not flap at all)
+	if not _wings.is_empty() and not _fx.has("freeze") and not _fx.has("stun"):
+		var flap := sin(_clock * (7.0 if _moving else 4.0)) * deg_to_rad(28.0)
+		for i in _wings.size():
+			var w: Node3D = _wings[i]
+			var side := -1.0 if w.name == "WingL" else 1.0
+			w.rotation.z = float(w.get_meta("base_z", 0.0)) + flap * -side
 	if _fx.has("stun"):
 		_fx["stun"].rotate_y(delta * 5.0)
 	if _fx.has("burn"):

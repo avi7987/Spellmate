@@ -39,7 +39,23 @@ const BUTTON_GREY := Color(0.30, 0.27, 0.24)
 const PANEL_BG := PARCHMENT
 const PANEL_BORDER := GOLD_DARK
 
+const FONT_SYMBOLS := preload("res://assets/fonts/NotoSansSymbols2-Regular.ttf")
+const FONT_EMOJI := preload("res://assets/fonts/NotoEmoji.ttf")
+
 static var _fonts: Dictionary = {}
+static var _fallbacks_done := false
+
+
+## Symbols and emoji (◆ ⚔ 🪙 🏆...) are not in the Hebrew fonts, and the browser
+## version cannot borrow them from the computer, so every font falls back to
+## two symbol fonts that ship with the game.
+static func setup_fonts() -> void:
+	if _fallbacks_done:
+		return
+	_fallbacks_done = true
+	for f in [FONT_TITLE, FONT_BODY, FONT_BOLD, load("res://assets/fonts/SuezOne.ttf"), load("res://assets/fonts/Rubik.ttf")]:
+		if f is FontFile:
+			f.fallbacks = [FONT_SYMBOLS, FONT_EMOJI]
 
 
 static func font(weight: int) -> Font:
@@ -59,6 +75,7 @@ static func is_light(c: Color) -> bool:
 
 
 static func make_theme() -> Theme:
+	setup_fonts()
 	var t := Theme.new()
 	t.default_font = FONT_BODY
 	t.default_font_size = 20
@@ -143,7 +160,9 @@ static func label(text: String, size: int = 20, color: Color = TEXT, weight: int
 		l.add_theme_color_override("font_outline_color", OUTLINE)
 		l.add_theme_constant_override("outline_size", maxi(4, size / 5))
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# short labels never wrap (in a row they would be squeezed into a column);
+	# long text wraps - give it a width with custom_minimum_size or a container
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if text.length() > 34 else TextServer.AUTOWRAP_OFF
 	return l
 
 

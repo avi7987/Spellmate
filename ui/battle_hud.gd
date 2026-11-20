@@ -321,6 +321,7 @@ func show_unit_info(u: BUnit) -> void:
 	if not u.structure:
 		var role := UiKit.label(HeroTexts.role_of(u.kind), 15, UiKit.INK)
 		role.custom_minimum_size = Vector2(230, 0)
+		role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info_box.add_child(role)
 	var stats := GridContainer.new()
 	stats.columns = 2
@@ -351,6 +352,7 @@ func show_unit_info(u: BUnit) -> void:
 		_info_box.add_child(UiKit.label("✦ " + HeroTexts.ability_name(ab["id"]) + "  (◆%d)" % int(ab.get("cost", 0)), 16, UiKit.RED_INK, 700))
 		var d := UiKit.label(HeroTexts.ability_desc(ab["id"]), 14, UiKit.INK)
 		d.custom_minimum_size = Vector2(230, 0)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info_box.add_child(d)
 	if u.kind == "king":
 		_info_box.add_child(UiKit.label(("מוגן מאחורי החומות" if not battle.king_exposed(u.team) else "חשוף! אפשר לתקוף אותו"), 15, UiKit.RED_INK, 700))

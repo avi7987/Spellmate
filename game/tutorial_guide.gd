@@ -45,6 +45,7 @@ func setup(_bs: BattleScreen) -> void:
 	v.add_child(top)
 	_label = UiKit.label("", 22, UiKit.INK, 700)
 	_label.custom_minimum_size = Vector2(640, 0)
+	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_label)
 	_show()
 

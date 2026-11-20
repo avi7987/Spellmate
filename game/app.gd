@@ -15,6 +15,7 @@ var _overlay: CanvasLayer
 
 func _ready() -> void:
 	randomize()
+	UiKit.setup_fonts()
 	_build_world()
 	camera_rig = CameraRig.new()
 	add_child(camera_rig)

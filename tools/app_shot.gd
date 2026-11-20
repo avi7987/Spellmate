@@ -21,6 +21,9 @@ func _init() -> void:
 			p.build("mage_tower")
 			p.build("barracks")
 			p.decorations = ["well", "market"]
+			if args.has("dragon"):
+				p.build("dragon_roost")
+				p.deck[1] = "dragon"
 			p.save()
 	var app: Node = load("res://scenes/app.tscn").instantiate()
 	root.add_child(app)
@@ -37,6 +40,7 @@ func _init() -> void:
 					if what == "heroes": n._open(n._heroes_panel())
 					elif what == "deck": n._open(n._deck_panel())
 					elif what == "chests": n._open(n._chests_panel())
+					elif what.begins_with("book:"): n._open(n._book_panel(what.substr(5)))
 					elif what == "openchest": n._open_chest(0)
 					elif what.begins_with("building:"): n._open(n._building_panel(what.substr(9)))
 	await create_timer(1.2 * Engine.time_scale).timeout

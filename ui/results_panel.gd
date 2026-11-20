@@ -52,7 +52,7 @@ func show_results(result: Dictionary, rewards: Dictionary, profile: Profile) -> 
 		grid.add_child(b)
 		b.create_tween().tween_property(b, "modulate:a", 1.0, 0.4).set_delay(0.3 + rows.find(r) * 0.35)
 	if rewards.get("chest", "") != "":
-		v.add_child(UiKit.label("קיבלת תיבת %s! פתח אותה בבסיס" % ChestNames.name_of(rewards["chest"]), 22, Color(1, 0.8, 0.4), 800))
+		v.add_child(UiKit.label("🎁 קיבלתם תיבת %s! פתחו אותה בכפר" % ChestNames.name_of(rewards["chest"]), 22, UiKit.RED_INK, 700))
 	if rewards.get("new_arena", false):
 		v.add_child(UiKit.title("עלית לזירה חדשה: %s!" % profile.arena()["name"], 30))
 	var b := UiKit.button("חזרה לבסיס", UiKit.BUTTON_BRONZE, 26)

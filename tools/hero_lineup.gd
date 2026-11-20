@@ -46,6 +46,9 @@ func _init() -> void:
 	world.add_child(cam)
 	var cz := (teams.size() - 1) * 1.1
 	cam.position = Vector3(0, 6, cz + 12)
+	if args.size() > 3 and args[3] == "top":
+		cam.position = Vector3(0, 14, cz + 10)
+		cam.size *= 1.25
 	cam.look_at(Vector3(0, 0.7, cz))
 	for i in 12:
 		await process_frame

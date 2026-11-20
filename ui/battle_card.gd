@@ -17,6 +17,7 @@ var wait := 0.0          ## seconds until ready, -1 = hero on the field
 var affordable := true
 var chosen := false      ## planned this turn / being aimed
 var turn_seconds := 0.0  ## > 0: show waits in turns
+var chosen_text := "✔ מתוכנן"
 var _hover := false
 var _time := 0.0
 
@@ -99,7 +100,7 @@ func _draw() -> void:
 	if key_hint != "":
 		draw_string(UiKit.FONT_BOLD, r.position + Vector2(r.size.x - 18, 19), key_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiKit.INK_SOFT)
 	if chosen:
-		_ribbon(r, "✔ מתוכנן", Color(0.18, 0.45, 0.12))
+		_ribbon(r, chosen_text, Color(0.18, 0.45, 0.12))
 		return
 	if wait != 0.0 or not affordable:
 		draw_rect(r, Color(0.15, 0.08, 0.02, 0.5))

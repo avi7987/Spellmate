@@ -5,6 +5,7 @@
 Sound effects, two music loops (base + battle, medieval style) and
 gibberish "voice" syllables for the characters (like the funny
 mumbling in many cartoon games). 22 kHz mono 16-bit WAV.
+The music (and the victory / defeat calls) is made by tools/make_music.py.
 """
 import os
 import wave
@@ -117,14 +118,6 @@ def sfx():
     save("power", mix(tone(np.linspace(200, 800, int(SR * d)), d, "saw") * env(int(SR * d), a=0.05, curve=1.5) * 0.4, lowpass(noise(d), 0.25) * env(int(SR * d), curve=1.2) * 0.4), 0.55)
     d = 1.0
     save("upgrade", mix(*[at(tone(note(n), 0.4, "tri") * env(int(SR * .4)) * 0.5, i * 0.12, d) for i, n in enumerate([60, 64, 67, 72])], at(lowpass(noise(0.3), 0.3) * env(int(SR * .3)) * 0.2, 0.0, d)), 0.6)
-    # fanfare (victory)
-    d = 2.2
-    seq = [(67, 0, .15), (67, .15, .15), (67, .3, .15), (72, .45, .9), (71, 1.1, .2), (72, 1.3, .9)]
-    br = lambda n, dd: (tone(note(n), dd, "saw") * 0.5 + tone(note(n) * 2, dd, "saw") * 0.15) * env(int(SR * dd), a=0.02, curve=0.8)
-    save("fanfare", lowpass(mix(*[at(br(n, dd), s, d) for n, s, dd in seq], *[at(br(n - 12, 1.0) * 0.5, 1.2, d) for n in [60, 64]]), 0.15), 0.8)
-    d = 1.6
-    seq = [(64, 0, .35), (63, .35, .35), (62, .7, .35), (61, 1.05, .55)]
-    save("lose", lowpass(mix(*[at(tone(note(n - 12), dd, "saw") * env(int(SR * dd), a=0.02, curve=1.0), s, d) for n, s, dd in seq]), 0.1), 0.6)
     d = 0.9
     save("chest", mix(lowpass(noise(0.2), 0.2) * env(int(SR * .2)), at(mix(*[at(tone(note(n), 0.4, "square") * env(int(SR * .4)) * 0.3, i * 0.07, 0.8) for i, n in enumerate([76, 79, 83, 88])]), 0.15, d)), 0.6)
     save("reward", mix(*[at(tone(note(n), 0.3, "tri") * env(int(SR * .3)) * 0.4, i * 0.08, 0.6) for i, n in enumerate([84, 88, 91])]), 0.5)
@@ -187,7 +180,5 @@ if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     sfx()
     voices()
-    dorian = [0, 2, 3, 5, 7, 9, 10]
-    music("music_base", 92, dorian, [50, 50, 53, 48, 50, 55, 53, 48], 16, 0.45, 0)
-    music("music_battle", 132, [0, 2, 3, 5, 7, 8, 10], [45, 45, 48, 43, 45, 41, 43, 40], 16, 0.7, 2)
+    # music, fanfare and lose: see tools/make_music.py
     print("sounds written to", os.path.abspath(OUT))
