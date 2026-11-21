@@ -1,7 +1,7 @@
 {
 	"_comment": "Spell cards: thrown on the map. Same effect types as hero abilities.",
-	"ice_bomb":    { "type": "area_damage", "damage": 60,  "effect": "freeze", "duration": 3.0, "radius": 2.0, "cost": 3, "cooldown": 8 },
-	"fire_bomb":   { "type": "area_damage", "damage": 420, "effect": "burn", "duration": 3.0, "radius": 1.8, "cost": 4, "cooldown": 8 },
-	"heal_potion": { "type": "area_heal",   "heal": 450, "radius": 2.5, "cost": 3, "cooldown": 8 },
-	"shield_wall": { "type": "wall", "hp": 700, "duration": 14.0, "cost": 2, "cooldown": 10, "unlock": "barracks" }
+	"ice_bomb": {"type": "area_damage", "damage": 60, "effect": "freeze", "duration": 3.0, "radius": 2.0, "cost": 3, "cooldown": 8, "rarity": "rare"},
+	"fire_bomb": {"type": "area_damage", "damage": 420, "effect": "burn", "duration": 3.0, "radius": 1.8, "cost": 4, "cooldown": 8, "rarity": "rare"},
+	"heal_potion": {"type": "area_heal", "heal": 450, "radius": 2.5, "cost": 3, "cooldown": 8, "rarity": "common"},
+	"shield_wall": {"type": "wall", "hp": 700, "duration": 14.0, "cost": 2, "cooldown": 10, "unlock": "barracks", "rarity": "common"}
 }

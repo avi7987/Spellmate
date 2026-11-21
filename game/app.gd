@@ -31,6 +31,8 @@ func _ready() -> void:
 	if args.has("--battle"):
 		var size: String = args[args.find("--battle") + 1] if args.size() > args.find("--battle") + 1 else "small"
 		var world: String = args[args.find("--world") + 1] if args.has("--world") else ""
+		if args.has("--mode"):
+			profile.settings["mode"] = args[args.find("--mode") + 1]
 		start_battle(size, args.has("--autoplay"), world)
 	elif not profile.tutorial_done and not args.has("--base"):
 		start_tutorial()
@@ -138,7 +140,7 @@ func start_battle(size: String, autoplay: bool = false, biome: String = "") -> v
 	_swap(bs)
 	bs.scene_mode = profile.settings.get("scenes", "always")
 	bs.rival = arena
-	bs.start(size, profile.deck, profile.levels(), profile.enemy_deck(rng), int(arena["ai"]), ai_levels, biome)
+	bs.start(size, profile.deck, profile.levels(), profile.enemy_deck(rng), int(arena["ai"]), ai_levels, biome, profile.settings.get("mode", "mate"))
 	bs.battle.apply_bonuses(0, profile.palace_bonus(), profile.start_energy_bonus())
 	bs.battle.loadout[0] = profile.settings.get("powers", {}).duplicate()
 	if autoplay:

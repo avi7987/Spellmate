@@ -11,7 +11,7 @@ const CHEST := "res://assets/props/chest_gold.glb"
 
 ## id -> [model, position, scale, hebrew name, description]
 const BUILDINGS := {
-	"palace": ["building_castle_blue", Vector3(0, 0, -4.2), 1.15, "הארמון", "כל דרגה: השער, המגדלים והמלך חזקים יותר בקרב (+8%)"],
+	"palace": ["building_castle_blue", Vector3(0, 0, -4.2), 1.15, "הארמון", "כל דרגה: השער והמלך חזקים יותר בקרב (+8%)"],
 	"mine": ["building_mine_blue", Vector3(-5.2, 0, -1.2), 1.0, "מכרה הקריסטלים", "כל דרגה: עוד אנרגיה אחת בתחילת כל קרב"],
 	"barracks": ["building_barracks_blue", Vector3(5.2, 0, -1.2), 1.0, "מגורי החיילים", "פותח את קלף 'חומת מגן'"],
 	"mage_tower": ["building_tower_B_blue", Vector3(-4.6, 0, -5.4), 1.0, "מגדל הקוסמים", "פותח את המלכה, המרפאה, מכשפת הקרח וקוסם האש"],
@@ -278,7 +278,7 @@ func _build_ui() -> void:
 	bottom.offset_right = -14
 	bottom.add_theme_constant_override("separation", 10)
 	_root.add_child(bottom)
-	for t in [["🏰 כפר", func(): _close_panel()], ["⭐ גיבורים", func(): _open(_heroes_panel())], ["🃏 חפיסה", func(): _open(_deck_panel())], ["📖 ספר הגיבורים", func(): _open(_book_panel("soldier"))]]:
+	for t in [["🏰 כפר", func(): _close_panel()], ["⭐ גיבורים", func(): _open(_heroes_panel())], ["🃏 חפיסה", func(): _open(_deck_panel())], ["📖 ספר הגיבורים", func(): _book_scroll = 0; _open(_book_panel("soldier"))]]:
 		var b := UiKit.button(t[0], UiKit.BUTTON_BRONZE, 20)
 		b.size_flags_vertical = Control.SIZE_SHRINK_END
 		b.custom_minimum_size = Vector2(124 if t[0].length() < 10 else 170, 62)
@@ -702,7 +702,7 @@ func _quests_panel() -> Control:
 
 ## Before a battle: pick the world (biome) and the map size.
 func _world_panel() -> Control:
-	var f := _frame("איפה נלחמים?", UiKit.GOLD, 1000)
+	var f := _frame("איפה ואיך נלחמים?", UiKit.GOLD, 1000)
 	var v: VBoxContainer = f[1]
 	var chosen: String = profile.settings.get("world", "meadow")
 	var grid := GridContainer.new()
@@ -719,6 +719,27 @@ func _world_panel() -> Control:
 			Sfx.play("select")
 			_reopen(_world_panel))
 		grid.add_child(tile)
+	# the game mode: how you win
+	var mode: String = profile.settings.get("mode", "mate")
+	var modes := HBoxContainer.new()
+	modes.alignment = BoxContainer.ALIGNMENT_CENTER
+	modes.add_theme_constant_override("separation", 10)
+	modes.add_child(UiKit.label("איך מנצחים:", 22, UiKit.TEXT, 700))
+	for m in Battle.MODES:
+		var on: bool = m == mode
+		var mb := UiKit.button("%s %s" % [HeroTexts.MODE_ICONS[m], HeroTexts.MODE_NAMES[m]], UiKit.BUTTON_RED if on else UiKit.BUTTON_STEEL, 19)
+		mb.custom_minimum_size = Vector2(185, 50)
+		mb.tooltip_text = HeroTexts.MODE_GOAL[m]
+		mb.pressed.connect(func():
+			profile.settings["mode"] = m
+			Sfx.play("click")
+			_reopen(_world_panel))
+		modes.add_child(mb)
+	v.add_child(modes)
+	var goal := UiKit.label(("%s (הקלאסי). " % HeroTexts.MODE_NAMES[mode] if mode == "mate" else "") + HeroTexts.MODE_GOAL[mode], 17, UiKit.TEXT_SOFT, 500)
+	goal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	goal.custom_minimum_size = Vector2(900, 0)
+	v.add_child(goal)
 	var sizes := HBoxContainer.new()
 	sizes.alignment = BoxContainer.ALIGNMENT_CENTER
 	sizes.add_theme_constant_override("separation", 10)
@@ -748,6 +769,9 @@ func _world_panel() -> Control:
 ## The hero book: a two-page spread. Right page: the list of heroes and
 ## spells. Left page: everything about the chosen one - picture, what it
 ## does, its numbers, its power, a tip, and who it is strong / weak against.
+var _book_scroll := 0
+
+
 func _book_panel(id: String) -> Control:
 	var f := _frame("ספר הגיבורים", UiKit.GOLD, 980)
 	var v: VBoxContainer = f[1]
@@ -757,6 +781,15 @@ func _book_panel(id: String) -> Control:
 	# list (first child = right side in a right-to-left layout)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(250, 470)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# the book is rebuilt on every click: keep the list where it was (it used to jump to the top)
+	var keep := _book_scroll
+	scroll.scroll_ended.connect(func(): _book_scroll = scroll.scroll_vertical)
+	scroll.get_v_scroll_bar().value_changed.connect(func(val: float): _book_scroll = int(val))
+	scroll.ready.connect(func():
+		await get_tree().process_frame
+		if is_instance_valid(scroll):
+			scroll.scroll_vertical = keep)
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 2)
 	scroll.add_child(list)

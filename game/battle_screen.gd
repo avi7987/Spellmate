@@ -7,16 +7,17 @@ extends Node
 ##   2. ACTION - "בצע!" : the computer plans its turn at the same moment
 ##               (without seeing the player's plan), all plans start together
 ##               and the world runs for TURN_SECONDS. Faster / skip buttons.
-##               A big moment (power, tower falls...) gets a short cinematic.
+##               A big moment (a power, the gate falls, check...) gets a short cinematic.
 ##   3. back to PLAN with a summary of what happened in the turn.
 ## Heroes without orders fight enemies that come close by themselves.
 ##
-## Controls (plan phase):
-##   left click a hero / drag a box     choose heroes (Shift = add)
-##   right click ground / enemy         walk there / attack it
+## Controls (plan phase) - CHESS-LIKE, left mouse button only:
+##   click a hero                       choose it: the squares it can reach this turn light up
+##   click a lit square                 walk there        click a red enemy   attack it
+##   right click / Esc                  cancel
 ##   1-8 or click a card                plan a hero / pick a spell, then click the map
 ##   Q or a power button                plan the chosen hero's power
-##   Space / Enter                      execute the turn       A  whole army   Esc  cancel
+##   Space / Enter                      execute the turn
 
 signal finished(result: Dictionary)
 
@@ -42,8 +43,6 @@ var plan: Array = []
 
 var _chosen_card := -1
 var _target_unit := -1
-var _drag_from := Vector2.ZERO
-var _dragging := false
 var _size := "small"
 var _stats := { "kills": 0, "lost": 0, "structures": 0, "spells": 0, "powers": 0, "monsters": 0, "treasures": 0 }
 var _turn_stats := {}
@@ -55,6 +54,7 @@ var _turns_done := 0
 var arena: BattleArena
 var scene_mode := "always"          ## arena scenes: always (once a turn) / important / never
 var _arena_used := false
+var _end_reason := ""
 
 
 var app: Node = null                 ## the App (for the day / night light)
@@ -62,9 +62,9 @@ var _power_scene_used := false
 var rival: Dictionary = {}           ## the arena's rival king (name, style) from data/meta.json
 
 
-func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}, biome: String = "meadow") -> void:
+func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}, biome: String = "meadow", mode: String = "mate") -> void:
 	_size = size
-	battle = Battle.create(size, [deck, ai_deck], [levels, ai_levels], randi() % 1000, biome)
+	battle = Battle.create(size, [deck, ai_deck], [levels, ai_levels], randi() % 1000, biome, mode)
 	ai = BattleAI.new(1, ai_level)
 	ai.style = rival.get("rival", "all")
 	# the rival picks his heroes' powers at random, for variety
@@ -113,7 +113,7 @@ func _begin_plan() -> void:
 		_taunt()
 	speed = 1.0
 	hud.set_phase(phase, turn, 0.0)
-	hud.set_hint("בחרו גיבורים ושלחו אותם בלחצן ימני, הוסיפו קלפים וכוחות, ואז לחצו על 'בצע!'", 0.0)
+	hud.set_hint("לחצו על גיבור, ואז על משבצת מוארת כדי ללכת או על אויב אדום כדי לתקוף. בסוף: 'בצע!'", 0.0)
 	Music.play("plan")
 
 
@@ -235,7 +235,11 @@ func _process(delta: float) -> void:
 				_react(events)
 	selected = selected.filter(func(id): return battle.unit(id) != null)
 	if phase == Phase.PLAN:
-		view.draw_plans(selected, TURN_SECONDS)
+		var hover := Vector2i(-99, -99)
+		if _chosen_card < 0 and _target_unit < 0:
+			var g := view.ground_at_screen(get_viewport().get_mouse_position())
+			hover = Vector2i(roundi(g.x), roundi(g.y))
+		view.draw_plans(selected, TURN_SECONDS, hover)
 	else:
 		view.hide_plans()
 	_update_target_preview()
@@ -262,7 +266,7 @@ func _count(events: Array) -> void:
 					_turn_stats["kills"] += 1
 				else:
 					_turn_stats["lost"] += 1
-				if e["kind"] in ["tower", "gate"]:
+				if e["kind"] == "gate":
 					_turn_stats["structures"].append([e["kind"], e["team"]])
 			"energy":
 				if e["team"] == 0:
@@ -330,16 +334,10 @@ func _react(events: Array) -> void:
 					_stats["kills"] += 1
 				else:
 					_stats["lost"] += 1
-				if e["kind"] == "tower":
-					Sfx.play("crash")
-					_maybe_scene(e["pos"], "המגדל נופל!")
-					hud.flash("מגדל נפל!" if e["team"] == 1 else "איבדנו מגדל!", Color(1, 0.85, 0.4) if e["team"] == 1 else Color(1, 0.4, 0.3))
-					if e["team"] == 1:
-						_stats["structures"] += 1
-				elif e["kind"] == "gate":
+				if e["kind"] == "gate":
 					Sfx.play("crash")
 					_maybe_scene(e["pos"], "השער נשבר!")
-					hud.flash("השער נשבר! המלך חשוף!" if e["team"] == 1 else "השער שלנו נשבר!", Color(1, 0.85, 0.4) if e["team"] == 1 else Color(1, 0.4, 0.3))
+					hud.flash("השער נשבר! הארמון פתוח!" if e["team"] == 1 else "השער שלנו נשבר!", Color(1, 0.85, 0.4) if e["team"] == 1 else Color(1, 0.4, 0.3))
 					if e["team"] == 1:
 						_stats["structures"] += 1
 				elif e["kind"] != "wall":
@@ -401,13 +399,51 @@ func _react(events: Array) -> void:
 			"upgrade":
 				if e["team"] == 1:
 					hud.flash("האויב שדרג את הארמון", Color(0.8, 0.6, 1.0))
+			"check":
+				Sfx.play("horn", 0.7)
+				if e["team"] == 1:
+					_maybe_scene(battle.king(1).pos if battle.king(1) else Vector2.ZERO, "שח למלך!")
+					hud.flash("שח! עכשיו חסמו לו את כל המשבצות מסביב", UiKit.GOLD, 1.4)
+				else:
+					hud.flash("שח למלך שלנו! הגנו עליו!", Color(1, 0.45, 0.35), 1.2)
+			"crown_taken":
+				Sfx.play("reward")
+				if e["team"] == 0:
+					_maybe_scene(e["pos"], "הכתר בידינו!")
+					hud.flash("גנבתם את הכתר! עכשיו הביתה, מהר!", UiKit.GOLD, 1.4)
+				else:
+					hud.flash("האויב גנב את הכתר שלנו! עצרו אותו!", Color(1, 0.45, 0.35), 1.4)
+			"crown_back":
+				hud.flash("הכתר חזר לכסא" , UiKit.GOLD, 1.0)
+			"drop":
+				if e["what"] == "crown":
+					hud.flash("הכתר נפל על הארץ!", UiKit.GOLD, 1.0)
+				else:
+					hud.flash("רונה נפלה על הארץ!", Color(0.8, 0.6, 1.0), 0.8)
+			"throne":
+				Sfx.play("horn", 0.6)
+				if e["team"] == 0:
+					hud.flash("%d מתוך 3 תורות על הכסא!" % e["turns"], UiKit.GOLD, 1.2)
+				else:
+					hud.flash("האויב יושב על הכסא שלנו! %d מתוך 3" % e["turns"], Color(1, 0.45, 0.35), 1.2)
+			"rune_taken":
+				Sfx.play("power", 0.5)
+				if e["team"] == 0:
+					hud.flash("לקחתם רונה! הביאו אותה למלך", Color(0.85, 0.65, 1.0), 1.0)
+			"rune_home":
+				Sfx.play("fanfare" if e["team"] == 0 else "crash", 0.5)
+				if e["team"] == 0:
+					_maybe_scene(e["pos"], "רונה %d מתוך 3!" % e["count"])
+				hud.flash(("רונה %d מתוך 3 אצל המלך!" if e["team"] == 0 else "לאויב יש %d רונות מתוך 3!") % e["count"],
+					Color(0.85, 0.65, 1.0) if e["team"] == 0 else Color(1, 0.45, 0.35), 1.3)
 			"game_over":
+				_end_reason = e.get("reason", "")
 				_finish(e["winner"], false)
 
 
 func _attack_sound(kind: String) -> String:
 	match kind:
-		"archer", "tower", "ballista": return "bow"
+		"archer", "ballista": return "bow"
 		"queen", "ice_witch", "fire_mage", "healer", "dragon": return "zap"
 	return "hit"
 
@@ -440,7 +476,7 @@ func _taunt() -> void:
 	var k := battle.king(1)
 	if k == null or not view.view(k.id):
 		return
-	var exposed := battle.king_exposed(1) or k.hp < k.max_hp
+	var exposed: bool = battle.in_check[1] or battle.gate(1) == null
 	var lines: Array = HeroTexts.TAUNTS_HURT if exposed else (HeroTexts.RIVAL_TAUNTS.get(rival.get("rival", ""), []) + HeroTexts.TAUNTS)
 	var cam := get_viewport().get_camera_3d()
 	var p := cam.unproject_position(view.view(k.id).global_position + Vector3(0, 2.4, 0))
@@ -477,7 +513,7 @@ func _finish(winner: int, quit: bool) -> void:
 		tutorial.visible = false
 	var won := winner == 0 and not quit
 	if won:
-		hud.flash("ניצחון!", UiKit.GOLD, 2.0)
+		hud.flash({"mate": "מט! ניצחון!", "crown": "הכתר שלכם! ניצחון!", "throne": "הכסא שלכם! ניצחון!", "runes": "כשף הסיום! ניצחון!"}.get(_end_reason, "ניצחון!"), UiKit.GOLD, 2.0)
 		Sfx.play("fanfare")
 	elif winner == 2:
 		hud.flash("תיקו", UiKit.GOLD, 2.0)
@@ -518,33 +554,76 @@ func _unhandled_input(event: InputEvent) -> void:
 				if event.keycode >= KEY_1 and event.keycode <= KEY_8:
 					_on_card(event.keycode - KEY_1)
 		return
-	if event is InputEventMouseButton:
+	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				if _chosen_card >= 0:
-					_plan_spell_at(view.ground_at_screen(event.position))
-				elif _target_unit >= 0:
-					_plan_ability_at(view.ground_at_screen(event.position))
-				else:
-					_dragging = true
-					_drag_from = event.position
-			elif _dragging:
-				_dragging = false
-				hud.hide_drag_box()
-				var rect := Rect2(_drag_from, Vector2.ZERO).expand(event.position)
-				if rect.size.length() > 10.0:
-					_select(view.units_in_rect(rect), event.shift_pressed)
-				else:
-					_click_select(event.position, event.shift_pressed)
-		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			if _chosen_card >= 0:
+				_plan_spell_at(view.ground_at_screen(event.position))
+			elif _target_unit >= 0:
+				_plan_ability_at(view.ground_at_screen(event.position))
+			elif phase == Phase.PLAN:
+				_board_click(event.position)
+			else:
+				_click_select(event.position, false)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			if _chosen_card >= 0 or _target_unit >= 0:
 				_cancel()
-			elif phase == Phase.PLAN:
-				_order(event.position)
 			else:
-				hud.flash("פקודות נותנים רק בשלב התכנון", UiKit.GOLD, 0.7)
-	elif event is InputEventMouseMotion and _dragging:
-		hud.show_drag_box(Rect2(_drag_from, Vector2.ZERO).expand(event.position))
+				_select([], false)
+
+
+## The unit under the mouse: its body, or else whoever stands on that square.
+func _unit_at(screen: Vector2) -> BUnit:
+	var id := view.unit_at_screen(screen)
+	if id >= 0:
+		return battle.unit(id)
+	var g := view.ground_at_screen(screen)
+	var cell := Vector2i(roundi(g.x), roundi(g.y))
+	var best: BUnit = null
+	for u: BUnit in battle.units:
+		if u.cell() == cell and (best == null or (u.team == 0 and best.team != 0)):
+			best = u
+	return best
+
+
+## One left click on the board (plan phase), chess-like:
+##   own hero -> choose it   lit square -> walk there   red enemy -> attack it
+func _board_click(screen: Vector2) -> void:
+	var g := view.ground_at_screen(screen)
+	var cell := Vector2i(roundi(g.x), roundi(g.y))
+	var u := _unit_at(screen)
+	var hero: BUnit = battle.unit(selected[0]) if selected.size() == 1 else null
+	if hero != null:
+		if u != null and u.team != 0 and view.attack_now.has(u.id):
+			battle.order_attack([hero.id], u.id)
+			view.order_marker(u.pos, true)
+			Sfx.play("order")
+			_say(hero, 0.35)
+			return
+		if view.reach_now.has(cell) and cell != hero.cell() and (u == null or u.team != 0 or u.structure):
+			battle.order_move([hero.id], Vector2(cell))
+			view.order_marker(Vector2(cell), false)
+			Sfx.play("order")
+			_say(hero, 0.25)
+			return
+	if u != null and u.team == 0 and not u.structure and u.kind != "king":
+		_select([u.id], false)
+		_say(u, 0.25)
+		Sfx.play("select", 0.6)
+		return
+	if u != null and u.kind == "king" and u.team == 0:
+		hud.show_unit_info(u)
+		hud.flash("המלך זז לבד בתוך הארמון, ובורח מסכנה", UiKit.GOLD, 1.0)
+		return
+	if u != null and u.team != 0:
+		hud.show_unit_info(u)
+		if hero != null:
+			hud.flash("רחוק מדי לתור הזה. התקרבו קודם", Color(1, 0.7, 0.4), 0.9)
+		return
+	if hero != null and battle.in_bounds(g):
+		hud.flash("אפשר ללכת רק למשבצות המוארות", UiKit.GOLD, 0.8)
+		Sfx.play("deny", 0.5)
+		return
+	_select([], false)
 
 
 func _click_select(screen: Vector2, add: bool) -> void:
@@ -572,33 +651,6 @@ func _select(ids: Array, add: bool) -> void:
 		hud.show_unit_info(battle.unit(selected[0]))
 	else:
 		hud.show_unit_info(null)
-
-
-func _order(screen: Vector2) -> void:
-	var movers := selected.filter(func(id):
-		var u := battle.unit(id)
-		return u != null and u.speed > 0.0)
-	if movers.is_empty():
-		if not selected.is_empty():
-			hud.flash("המלך לא יוצא מהארמון", UiKit.GOLD, 0.8)
-		return
-	var id := view.unit_at_screen(screen)
-	var t := battle.unit(id) if id >= 0 else null
-	if t != null and t.team == 1 and battle.can_target(0, t):
-		battle.order_attack(movers, id)
-		view.order_marker(t.pos, true)
-		Sfx.play("order")
-	else:
-		if t != null and t.kind == "king" and t.team == 1:
-			hud.flash("המלך מוגן! קודם צריך לשבור את השער או מגדל", Color(1, 0.7, 0.4), 1.2)
-		var p := view.ground_at_screen(screen)
-		if not battle.in_bounds(p):
-			return
-		battle.order_move(movers, p)
-		view.order_marker(p, false)
-		Sfx.play("order")
-		if randf() < 0.3:
-			_say(battle.unit(movers[0]), 0.5)
 
 
 func _on_card(idx: int) -> void:

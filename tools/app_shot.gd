@@ -1,6 +1,6 @@
 extends SceneTree
 ## Runs the real game and saves a screenshot after some seconds.
-## xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd -- out.png 6 [--battle small] [--autoplay] [--base] [speed=3] [select] [panel=heroes|deck|chests|building:mage_tower]
+## xvfb-run -a godot --rendering-driver opengl3 --script res://tools/app_shot.gd -- out.png 6 [--battle small] [--autoplay] [--base] [speed=3] [select] [cast=fire_bomb wait=0.6] [--mode crown] [panel=heroes|deck|chests|building:mage_tower]
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -32,7 +32,21 @@ func _init() -> void:
 		if a == "select":
 			for n in app.get_children():
 				if n is BattleScreen:
-					n._select(n.battle.heroes_of(0).map(func(u): return u.id), false)
+					# one hero: its squares for this turn light up
+					var hs: Array = n.battle.heroes_of(0).filter(func(u): return u.role() != "miner")
+					n._select([hs[0].id], false)
+		if a.begins_with("cast="):
+			# show a spell card's animation in front of the Sun's palace (screenshot after `wait=`)
+			for n in app.get_children():
+				if n is BattleScreen:
+					var b: Battle = n.battle
+					b.energy[0] = 20
+					var id := a.substr(5)
+					b.cards[0][0]["id"] = id
+					var gate: Vector2i = b.map["palaces"][0]["gate"]
+					b.play_card(0, 0, Vector2(gate) + Vector2(0, 3))
+		if a.begins_with("wait="):
+			await create_timer(float(a.substr(5)) * Engine.time_scale).timeout
 		if a.begins_with("panel="):
 			for n in app.get_children():
 				if n is BaseScreen:

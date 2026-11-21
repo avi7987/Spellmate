@@ -127,10 +127,10 @@ func test_heroes_walk_only_their_squares_each_turn() -> void:
 	check(cells.has(Vector2i(5, 7)), "3 squares away is reachable")
 	check(not cells.has(Vector2i(6, 7)), "4 squares away is not")
 	b.order_move([u.id], Vector2(10, 7))
-	_run(b, 4.9)
+	_run(b, 4.5)
 	check(u.pos.distance_to(Vector2(2, 7)) <= 3.0 + 0.8, "walked at most its squares: %s" % u.pos)
-	_run(b, 5.0)
-	check(u.pos.x > 5.5, "walks on in the next turn: %s" % u.pos)
+	_run(b, 5.5)
+	check(u.pos.x > 5.9, "walks on in the next turn: %s" % u.pos)
 
 
 func test_mate_needs_the_king_and_his_squares_threatened() -> void:

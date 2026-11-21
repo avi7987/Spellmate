@@ -1,7 +1,9 @@
 class_name BattleView
 extends Node3D
-## Draws a real-time battle: the map, palaces (gate + towers), heroes,
-## shots, spells, numbers, the fog of war, selection rings and order markers.
+## Draws a real-time battle: the map, palaces (gate, king), heroes, shots,
+## spells, numbers, the fog of war, selection rings, order markers, the squares
+## a chosen hero can reach this turn (chess-like) and the goal of the game mode
+## (a crown, a throne, magic runes, or the threatened squares around a king).
 ## It only READS the Battle; orders go through game/battle_main.gd.
 
 const ENV_DIR := "res://assets/environment/kaykit/"
@@ -51,6 +53,7 @@ func setup(b: Battle, p_viewer: int) -> void:
 	_terrain_view.build(b.map["terrain"], _w, _h, b.world)
 	_scenery()
 	_shrines()
+	_objectives()
 	_units_root = Node3D.new()
 	add_child(_units_root)
 	_fx_root = Node3D.new()
@@ -256,6 +259,7 @@ func _process(delta: float) -> void:
 			v.follow(u, to_world(u.pos), now, delta)
 		elif v.has_meta("bar"):
 			v.get_meta("bar").set_health(int(u.hp), int(u.max_hp))
+	_update_objectives(delta)
 	if _fog != null:
 		_fog_timer -= delta
 		if _fog_timer <= 0.0:
@@ -371,7 +375,7 @@ var _reach_rings: Array = []
 ## While planning: an arrow from every hero you gave an order to where it is
 ## going (green = walk, red = attack), and for the chosen heroes a ring that
 ## shows how far they can walk in one turn.
-func draw_plans(selected: Array, turn_seconds: float) -> void:
+func draw_plans(selected: Array, turn_seconds: float, hover: Vector2i = Vector2i(-99, -99)) -> void:
 	if _plan_lines == null:
 		_plan_lines = MeshInstance3D.new()
 		_plan_lines.mesh = ImmediateMesh.new()
@@ -417,38 +421,95 @@ func draw_plans(selected: Array, turn_seconds: float) -> void:
 				im.surface_add_vertex(v)
 	if any:
 		im.surface_end()
-	# reach rings for the chosen heroes
-	var i := 0
-	for id in (selected if selected.size() == 1 else []):
-		var u := battle.unit(id)
-		if u == null or u.speed <= 0.0:
-			continue
-		if i >= _reach_rings.size():
-			var r := MeshInstance3D.new()
-			var t := TorusMesh.new()
-			t.inner_radius = 0.97
-			t.outer_radius = 1.0
-			t.rings = 64
-			r.mesh = t
-			r.material_override = Style.glow(Color(0.6, 1.0, 0.6), 0.7)
-			r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			add_child(r)
-			_reach_rings.append(r)
-		var ring: MeshInstance3D = _reach_rings[i]
-		var reach := u.speed * turn_seconds * (1.15 if battle.favoured_team() == u.team else 1.0)
-		ring.visible = true
-		ring.position = to_world(u.pos) + Vector3(0, 0.06, 0)
-		ring.scale = Vector3(reach, 0.25, reach)
-		i += 1
-	for j in range(i, _reach_rings.size()):
-		_reach_rings[j].visible = false
+	_draw_tiles(selected[0] if selected.size() == 1 else -1, hover)
+
+
+var _tile_mesh: MeshInstance3D
+var reach_now: Dictionary = {}       ## the squares the chosen hero can reach (for clicks)
+var attack_now: Array = []           ## enemy ids the chosen hero can hit this turn
+
+
+## Lights the squares the chosen hero can walk to this turn (gold), the enemies
+## it can hit (red), the square under the mouse, and in "mate" the threatened
+## squares around both kings.
+func _draw_tiles(id: int, hover: Vector2i) -> void:
+	if _tile_mesh == null:
+		_tile_mesh = MeshInstance3D.new()
+		_tile_mesh.mesh = ImmediateMesh.new()
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.vertex_color_use_as_albedo = true
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_tile_mesh.material_override = m
+		_tile_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_tile_mesh)
+	_tile_mesh.visible = true
+	var im := _tile_mesh.mesh as ImmediateMesh
+	im.clear_surfaces()
+	reach_now = {}
+	attack_now = []
+	var quads := []      # [cell, colour, inset]
+	var u := battle.unit(id) if id >= 0 else null
+	if u != null:
+		reach_now = battle.reach_cells(u, true)
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 250.0)
+		for c in reach_now:
+			if c == u.cell():
+				continue
+			var col := Color(1.0, 0.82, 0.3, 0.30)
+			if c == hover:
+				col = Color(1.0, 0.92, 0.5, 0.65 + 0.2 * pulse)
+			quads.append([c, col, 0.06])
+		for e: BUnit in battle.attackable(u, true):
+			if e.team == viewer or (e.team != Battle.NEUTRAL and not battle.is_visible(viewer, e.pos)):
+				continue
+			attack_now.append(e.id)
+			var hot: bool = e.cell() == hover
+			quads.append([e.cell(), Color(1.0, 0.22, 0.18, (0.7 if hot else 0.45) + 0.15 * pulse), 0.02])
+		quads.append([u.cell(), Color(0.5, 1.0, 0.5, 0.35), 0.1])
+	if battle.mode == "mate":
+		for team in 2:
+			for c in battle.mate_cells[team]:
+				quads.append([c, Color(1.0, 0.3, 0.2, 0.35) if team == 1 else Color(1.0, 0.55, 0.1, 0.35), 0.18])
+	if quads.is_empty():
+		return
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for q in quads:
+		var c: Vector2i = q[0]
+		var col: Color = q[1]
+		var k: float = 0.5 - q[2]
+		var center := to_world(Vector2(c)) + Vector3(0, 0.07, 0)
+		var a := center + Vector3(-k, 0, -k)
+		var b := center + Vector3(k, 0, -k)
+		var cc := center + Vector3(k, 0, k)
+		var d := center + Vector3(-k, 0, k)
+		for v in [a, b, cc, a, cc, d]:
+			im.surface_set_color(col)
+			im.surface_add_vertex(v)
+		# a brighter rim
+		var rim := Color(col.r, col.g, col.b, minf(1.0, col.a + 0.35))
+		var t := 0.05
+		for e in [[a, b, Vector3(0, 0, t)], [b, cc, Vector3(-t, 0, 0)], [cc, d, Vector3(0, 0, -t)], [d, a, Vector3(t, 0, 0)]]:
+			var p0: Vector3 = e[0]
+			var p1: Vector3 = e[1]
+			var o: Vector3 = e[2]
+			for v in [p0, p1, p1 + o, p0, p1 + o, p0 + o]:
+				im.surface_set_color(rim)
+				im.surface_add_vertex(v)
+	im.surface_end()
 
 
 func hide_plans() -> void:
 	if _plan_lines != null:
 		_plan_lines.visible = false
-	for r in _reach_rings:
-		r.visible = false
+	reach_now = {}
+	attack_now = []
+	if _tile_mesh != null:
+		if battle.mode == "mate":
+			_draw_tiles(-1, Vector2i(-99, -99))
+		else:
+			_tile_mesh.visible = false
 
 
 # ------------------------------------------------------------------ world things
@@ -565,7 +626,10 @@ func play_events(events: Array) -> void:
 					v.play_once("cast")
 				_area_fx(e["ability"], e["pos"], e["radius"], e.get("from", e["pos"]))
 			"spell":
-				_area_fx(e["card"], e["pos"], e["radius"], e["pos"])
+				if e["card"] in ["ice_bomb", "fire_bomb", "heal_potion", "shield_wall"]:
+					_spell_show(e["card"], e["pos"], e["radius"], e["team"])
+				else:
+					_area_fx(e["card"], e["pos"], e["radius"], e["pos"])
 			"breach":
 				_terrain_view.build(battle.map["terrain"], _w, _h, battle.world)
 			"treasure_spawn":
@@ -775,3 +839,311 @@ func _update_fog() -> void:
 		if not battle.is_visible(viewer, p):
 			a = 0.5 if explored[i] == 1 else 0.9
 		mm.set_instance_color(i, Color(0.03, 0.03, 0.06, a))
+
+
+# ------------------------------------------------------------------ game mode goals
+
+var _crowns: Array = []      ## Node3D per battle.crowns entry
+var _runes: Array = []       ## Node3D per battle.runes entry
+var _thrones: Array = []     ## [Node3D, progress ring] per kingdom
+
+
+func _objectives() -> void:
+	_crowns.clear()
+	_runes.clear()
+	_thrones.clear()
+	match battle.mode:
+		"crown":
+			for cr in battle.crowns:
+				var n := _crown_model(Style.team(cr["team"])["ui"])
+				add_child(n)
+				_crowns.append(n)
+				_throne_model(cr["team"], false)
+		"throne":
+			for team in 2:
+				_thrones.append(_throne_model(team, true))
+		"runes":
+			for r in battle.runes:
+				var n := Node3D.new()
+				var stone := _part(n, _cyl_mesh(0.0, 0.22, 0.55), Style.glow(Color(0.75, 0.45, 1.0), 2.6), Vector3(0, 0.0, 0))
+				_part(n, _cyl_mesh(0.22, 0.0, 0.3), Style.glow(Color(0.75, 0.45, 1.0), 2.6), Vector3(0, -0.42, 0))
+				stone.rotation_degrees.x = 180
+				var ring := MeshInstance3D.new()
+				var t := TorusMesh.new()
+				t.inner_radius = 0.42
+				t.outer_radius = 0.5
+				ring.mesh = t
+				ring.material_override = Style.glow(Color(0.8, 0.5, 1.0), 1.2)
+				ring.position.y = -0.62
+				n.add_child(ring)
+				add_child(n)
+				_runes.append(n)
+
+
+## A golden crown with jewels (it floats and turns slowly).
+func _crown_model(jewel: Color) -> Node3D:
+	var n := Node3D.new()
+	var gold := Style.metal(Color(1.0, 0.78, 0.25))
+	_part(n, _cyl_mesh(0.3, 0.3, 0.16), gold, Vector3.ZERO)
+	for i in 5:
+		var a := TAU * i / 5.0
+		_part(n, _cyl_mesh(0.0, 0.07, 0.22), gold, Vector3(cos(a) * 0.27, 0.18, sin(a) * 0.27))
+		_part(n, _cyl_mesh(0.05, 0.05, 0.05), Style.glow(jewel, 2.0), Vector3(cos(a) * 0.3, 0.02, sin(a) * 0.3))
+	n.scale = Vector3.ONE * 1.3
+	return n
+
+
+## The king's throne at the back of the palace (a big golden chair).
+func _throne_model(team: int, with_ring: bool) -> MeshInstance3D:
+	var root := Node3D.new()
+	root.position = to_world(Vector2(battle.map["palaces"][team]["seat"]))
+	root.rotation_degrees.y = 0.0 if team == 0 else 180.0
+	add_child(root)
+	var gold := Style.metal(Color(1.0, 0.78, 0.25))
+	var cloth := Style.cloth(Style.team(team)["ui"].darkened(0.2))
+	_part(root, _box_mesh(Vector3(0.8, 0.35, 0.7)), gold, Vector3(0, 0.18, 0))
+	_part(root, _box_mesh(Vector3(0.66, 0.1, 0.58)), cloth, Vector3(0, 0.4, 0.02))
+	_part(root, _box_mesh(Vector3(0.8, 1.1, 0.14)), gold, Vector3(0, 0.75, -0.3))
+	_part(root, _box_mesh(Vector3(0.6, 0.85, 0.05)), cloth, Vector3(0, 0.75, -0.22))
+	for x in [-0.42, 0.42]:
+		_part(root, _box_mesh(Vector3(0.1, 0.3, 0.6)), gold, Vector3(x, 0.5, 0))
+		_part(root, _cyl_mesh(0.0, 0.08, 0.2), gold, Vector3(x * 0.9, 1.4, -0.3))
+	_part(root, _cyl_mesh(0.0, 0.1, 0.28), gold, Vector3(0, 1.45, -0.3))
+	if not with_ring:
+		return null
+	var ring := MeshInstance3D.new()
+	var t := TorusMesh.new()
+	t.inner_radius = 0.62
+	t.outer_radius = 0.72
+	t.rings = 48
+	ring.mesh = t
+	ring.material_override = Style.glow(Style.team(1 - team)["ui"], 1.4)
+	ring.position.y = 0.05
+	root.add_child(ring)
+	return ring
+
+
+func _update_objectives(delta: float) -> void:
+	var spin := Time.get_ticks_msec() / 1000.0
+	for i in _crowns.size():
+		var cr: Dictionary = battle.crowns[i]
+		var n: Node3D = _crowns[i]
+		var carried: bool = cr["carrier"] >= 0
+		var at_home: bool = Vector2(cr["pos"]) == Vector2(cr["home"])
+		var goal := to_world(cr["pos"]) + Vector3(0, (2.1 if carried else (1.7 if at_home else 0.7)) + 0.12 * sin(spin * 2.0), 0)
+		n.position = n.position.lerp(goal, minf(1.0, delta * 12.0)) if n.position != Vector3.ZERO else goal
+		n.rotation.y = spin * 1.2
+	for i in _runes.size():
+		var r: Dictionary = battle.runes[i]
+		var n: Node3D = _runes[i]
+		n.visible = battle.time >= float(r["back_at"]) or r["carrier"] >= 0
+		var carried: bool = r["carrier"] >= 0
+		var goal := to_world(r["pos"]) + Vector3(0, (2.0 if carried else 0.85) + 0.1 * sin(spin * 2.5 + i), 0)
+		n.position = n.position.lerp(goal, minf(1.0, delta * 12.0)) if n.position != Vector3.ZERO else goal
+		n.rotation.y = spin * 2.0
+	for team in _thrones.size():
+		var ring: MeshInstance3D = _thrones[team]
+		if ring == null:
+			continue
+		# the ring fills up as the enemy sits on this throne
+		var k: float = battle.throne_time[1 - team] / Battle.THRONE_TIME
+		ring.visible = k > 0.0
+		ring.scale = Vector3.ONE * (0.6 + 0.6 * k)
+
+
+# ------------------------------------------------------------------ spell shows
+
+## Each of the four spell cards gets its own little show: the bomb or potion
+## flies in from the caster's palace, lands, and then:
+##   ice bomb    - a frost disc spreads, ice crystals shoot out of the ground, snow
+##   fire bomb   - a fireball blast, flames, smoke rising and a burnt mark left behind
+##   heal potion - the bottle shatters, a green dome of light, rising hearts
+##   shield wall - golden shields slam down with dust and a ring of light
+func _spell_show(id: String, pos: Vector2, radius: float, team: int) -> void:
+	var at := to_world(pos)
+	if id == "shield_wall":
+		_shield_slam(at, team)
+		return
+	var from := to_world(Vector2(battle.map["palaces"][team]["gate"])) + Vector3(0, 1.5, 0)
+	var thing := Node3D.new()
+	_fx_root.add_child(thing)
+	match id:
+		"ice_bomb":
+			_part(thing, _sphere(0.28), Style.glow(Color(0.6, 0.9, 1.0), 1.8), Vector3.ZERO)
+			for i in 6:
+				var sp := _part(thing, _cyl_mesh(0.0, 0.07, 0.3), Style.glow(Color.WHITE, 1.2), Vector3.ZERO)
+				sp.rotation_degrees = Vector3(90, i * 60, 0)
+				sp.position = Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(i * 60)) * 0.3
+		"fire_bomb":
+			_part(thing, _sphere(0.3), Style.toon(Color(0.12, 0.1, 0.1), 0.3, 0.4), Vector3.ZERO)
+			_part(thing, _cyl_mesh(0.05, 0.05, 0.25), Style.matte(Color(0.55, 0.4, 0.25)), Vector3(0.12, 0.3, 0)).rotation_degrees.z = -30
+			_part(thing, _sphere(0.08), Style.glow(Color(1.0, 0.7, 0.2), 4.0), Vector3(0.2, 0.44, 0))
+		"heal_potion":
+			_part(thing, _sphere(0.24), Style.glow(Color(1.0, 0.3, 0.4), 1.2), Vector3(0, -0.05, 0))
+			_part(thing, _cyl_mesh(0.07, 0.09, 0.22), Style.toon(Color(0.85, 0.9, 1.0), 0.0, 0.2), Vector3(0, 0.25, 0))
+			_part(thing, _cyl_mesh(0.08, 0.08, 0.08), Style.matte(Color(0.55, 0.35, 0.2)), Vector3(0, 0.38, 0))
+	thing.position = from
+	var top := from.lerp(at, 0.5) + Vector3(0, 4.0, 0)
+	var tw := thing.create_tween()
+	var fly := 0.45
+	tw.tween_method(func(t: float):
+		thing.position = from.lerp(top, t).lerp(top.lerp(at + Vector3(0, 0.3, 0), t), t)
+		thing.rotation.x = t * 9.0, 0.0, 1.0, fly)
+	tw.tween_callback(thing.queue_free)
+	tw.tween_callback(_spell_land.bind(id, at, radius))
+
+
+func _spell_land(id: String, at: Vector3, radius: float) -> void:
+	match id:
+		"ice_bomb":
+			_ice_burst(at, radius)
+		"fire_bomb":
+			_fire_burst(at, radius)
+		"heal_potion":
+			_heal_burst(at, radius)
+
+
+func _sphere(r: float) -> SphereMesh:
+	var m := SphereMesh.new()
+	m.radius = r
+	m.height = r * 2.0
+	m.radial_segments = 12
+	m.rings = 6
+	return m
+
+
+## A flat glowing disc that grows and fades on the ground.
+func _disc(at: Vector3, color: Color, radius: float, grow: float, life: float) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _cyl_mesh(1.0, 1.0, 0.02)
+	var mat := Style.overlay(color)
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mi.material_override = mat
+	mi.position = at + Vector3(0, 0.09, 0)
+	mi.scale = Vector3(radius * 0.2, 1, radius * 0.2)
+	_fx_root.add_child(mi)
+	var tw := mi.create_tween().set_parallel(true)
+	tw.tween_property(mi, "scale", Vector3(radius, 1, radius), grow).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mat, "albedo_color:a", 0.0, life).set_delay(grow)
+	tw.chain().tween_callback(mi.queue_free)
+
+
+func _ice_burst(at: Vector3, radius: float) -> void:
+	_disc(at, Color(0.55, 0.85, 1.0, 0.7), radius, 0.25, 1.4)
+	Effects.shockwave(_fx_root, at + Vector3(0, 0.05, 0), Color(0.8, 0.95, 1.0), radius)
+	var ice := Style.glow(Color(0.7, 0.92, 1.0), 1.3)
+	for i in 14:
+		var a := TAU * i / 14.0 + randf() * 0.3
+		var d := randf_range(0.35, radius * 0.95)
+		var shard := _part(_fx_root, _cyl_mesh(0.0, randf_range(0.1, 0.18), randf_range(0.5, 1.1)), ice,
+			at + Vector3(cos(a) * d, 0.0, sin(a) * d))
+		shard.rotation = Vector3(randf_range(-0.4, 0.4), randf() * TAU, randf_range(-0.4, 0.4))
+		shard.scale = Vector3(1, 0.01, 1)
+		var tw := shard.create_tween()
+		tw.tween_property(shard, "scale", Vector3.ONE, 0.18).set_delay(i * 0.015).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(1.2)
+		tw.tween_property(shard, "scale", Vector3(0.01, 0.01, 0.01), 0.35)
+		tw.tween_callback(shard.queue_free)
+	Effects.storm(_fx_root, at + Vector3(0, 3.0, 0), Color(1, 1, 1), radius, 90)
+	if camera_rig:
+		camera_rig.shake(0.1, 0.3)
+
+
+func _fire_burst(at: Vector3, radius: float) -> void:
+	if camera_rig:
+		camera_rig.shake(0.3, 0.5)
+	# the fireball
+	var ball := _part(_fx_root, _sphere(1.0), Style.glow(Color(1.0, 0.55, 0.12), 4.0), at + Vector3(0, 0.4, 0))
+	ball.scale = Vector3.ONE * 0.2
+	var tw := ball.create_tween()
+	tw.tween_property(ball, "scale", Vector3.ONE * radius * 0.9, 0.18).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ball, "scale", Vector3.ONE * 0.01, 0.35).set_ease(Tween.EASE_IN)
+	tw.tween_callback(ball.queue_free)
+	var core := _part(_fx_root, _sphere(0.6), Style.glow(Color(1.0, 0.95, 0.6), 6.0), at + Vector3(0, 0.4, 0))
+	var tc := core.create_tween()
+	tc.tween_property(core, "scale", Vector3.ONE * 0.01, 0.3)
+	tc.tween_callback(core.queue_free)
+	Effects.shockwave(_fx_root, at + Vector3(0, 0.05, 0), Style.LAVA, radius)
+	Effects.burst(_fx_root, at + Vector3(0, 0.4, 0), Color(1.0, 0.6, 0.15), 60, 6.0, 0.09)
+	# smoke puffs rising
+	for i in 7:
+		var a := TAU * i / 7.0
+		var puff := _part(_fx_root, _sphere(0.35), Style.overlay(Color(0.18, 0.16, 0.15, 0.75), false),
+			at + Vector3(cos(a) * radius * 0.4, 0.5, sin(a) * radius * 0.4))
+		var tp := puff.create_tween().set_parallel(true)
+		tp.tween_property(puff, "position:y", 2.6 + randf(), 1.6).set_ease(Tween.EASE_OUT)
+		tp.tween_property(puff, "scale", Vector3.ONE * 2.2, 1.6)
+		tp.tween_property(puff.material_override, "albedo_color:a", 0.0, 1.6)
+		tp.chain().tween_callback(puff.queue_free)
+	# little flames dancing for a while
+	for i in 8:
+		var a2 := randf() * TAU
+		var d := randf_range(0.2, radius * 0.8)
+		var fl := _part(_fx_root, _cyl_mesh(0.0, 0.14, 0.45), Style.glow(Color(1.0, 0.5, 0.1), 3.0), at + Vector3(cos(a2) * d, 0.22, sin(a2) * d))
+		var tf := fl.create_tween().set_loops(4)
+		tf.tween_property(fl, "scale", Vector3(1.0, 1.6, 1.0), 0.18)
+		tf.tween_property(fl, "scale", Vector3(0.8, 0.7, 0.8), 0.18)
+		get_tree().create_timer(1.6).timeout.connect(func(): if is_instance_valid(fl): fl.queue_free())
+	# the burnt mark stays a few seconds
+	var mark := _part(_fx_root, _cyl_mesh(1.0, 1.0, 0.01), Style.overlay(Color(0.08, 0.06, 0.05, 0.7), false), at + Vector3(0, 0.08, 0))
+	mark.scale = Vector3(radius * 0.8, 1, radius * 0.8)
+	var tm := mark.create_tween()
+	tm.tween_interval(3.0)
+	tm.tween_property(mark.material_override, "albedo_color:a", 0.0, 1.5)
+	tm.tween_callback(mark.queue_free)
+
+
+func _heal_burst(at: Vector3, radius: float) -> void:
+	Effects.burst(_fx_root, at + Vector3(0, 0.3, 0), Color(0.85, 0.95, 1.0), 24, 3.0, 0.05)  # glass
+	_disc(at, Color(0.4, 1.0, 0.5, 0.6), radius, 0.3, 1.2)
+	# a dome of green light
+	var dome := _part(_fx_root, _sphere(1.0), Style.overlay(Color(0.45, 1.0, 0.55, 0.35)), at)
+	dome.material_override.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	dome.scale = Vector3(0.1, 0.05, 0.1)
+	var td := dome.create_tween()
+	td.tween_property(dome, "scale", Vector3(radius, radius * 0.7, radius), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	td.tween_property(dome.material_override, "albedo_color:a", 0.0, 0.9)
+	td.tween_callback(dome.queue_free)
+	Effects.pillar(_fx_root, at, Color(0.45, 1.0, 0.55), 4.0, 0.9)
+	# hearts and pluses float up
+	for i in 9:
+		var a := randf() * TAU
+		var d := randf_range(0.0, radius * 0.8)
+		var l := Label3D.new()
+		l.text = "♥" if i % 2 == 0 else "✚"
+		l.font = PERCENT_FONT
+		l.font_size = 64
+		l.outline_size = 10
+		l.modulate = Color(1.0, 0.45, 0.55) if i % 2 == 0 else Color(0.5, 1.0, 0.55)
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.no_depth_test = true
+		l.pixel_size = 0.006
+		l.position = at + Vector3(cos(a) * d, 0.4, sin(a) * d)
+		_fx_root.add_child(l)
+		var tl := l.create_tween().set_parallel(true)
+		tl.tween_property(l, "position:y", l.position.y + 2.2, 1.3).set_delay(i * 0.06).set_ease(Tween.EASE_OUT)
+		tl.tween_property(l, "modulate:a", 0.0, 0.6).set_delay(0.7 + i * 0.06)
+		tl.chain().tween_callback(l.queue_free)
+
+
+func _shield_slam(at: Vector3, team: int) -> void:
+	var gold := Color(1.0, 0.82, 0.3)
+	# three golden shields fall from the sky and slam into the ground
+	for i in 3:
+		var sh := Node3D.new()
+		_fx_root.add_child(sh)
+		_part(sh, _box_mesh(Vector3(0.36, 0.5, 0.06)), Style.metal(gold), Vector3.ZERO)
+		_part(sh, _box_mesh(Vector3(0.24, 0.32, 0.07)), Style.cloth(Style.team(team)["ui"]), Vector3(0, 0.02, 0.01))
+		var x := (i - 1) * 0.36
+		sh.position = at + Vector3(x, 3.5 + i * 0.4, 0)
+		var ts := sh.create_tween()
+		ts.tween_property(sh, "position:y", at.y + 0.9, 0.22).set_delay(i * 0.07).set_ease(Tween.EASE_IN)
+		ts.tween_callback(func():
+			Effects.burst(_fx_root, at + Vector3(x, 0.2, 0), Color(0.7, 0.6, 0.45), 14, 2.5, 0.07)
+			if camera_rig and i == 1:
+				camera_rig.shake(0.12, 0.25))
+		ts.tween_interval(0.5)
+		ts.tween_property(sh, "scale", Vector3(0.01, 0.01, 0.01), 0.25)
+		ts.tween_callback(sh.queue_free)
+	Effects.ring(_fx_root, at, gold, 3.0, 0.6)
+	_disc(at, Color(1.0, 0.85, 0.35, 0.5), 1.2, 0.25, 0.8)

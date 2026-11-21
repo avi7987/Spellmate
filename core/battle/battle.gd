@@ -183,9 +183,10 @@ func can_target(attacker_team: int, target: BUnit) -> bool:
 
 ## How many squares this hero may walk in one turn (the sky, rage, slow and a
 ## heavy crown change it).
-func move_tiles(u: BUnit) -> int:
+func move_tiles(u: BUnit, turn_index: int = -1) -> int:
 	var m := int(u.data.get("moves", 3))
-	if u.team == favoured_team():
+	var fav := favoured_team() if turn_index < 0 else favoured_team_at(turn_index)
+	if u.team == fav:
 		m += 1
 	if u.has_effect("rage", time):
 		m += 1
@@ -195,12 +196,13 @@ func move_tiles(u: BUnit) -> int:
 
 
 ## The squares a hero can still reach this turn: { Vector2i: steps }. Steps count
-## like a chess king (straight 1, diagonal 1.4).
-func reach_cells(u: BUnit) -> Dictionary:
+## like a chess king (straight 1, diagonal 1.4). planning = true: the squares for
+## the coming turn (the plan phase, when the hero gets all its squares back).
+func reach_cells(u: BUnit, planning: bool = false) -> Dictionary:
 	var out := {}
-	if u == null or u.structure or u.speed <= 0.0:
+	if u == null or u.structure or u.speed <= 0.0 or u.kind == "king":
 		return out
-	var limit := minf(u.budget, float(move_tiles(u))) + 0.05
+	var limit := (float(move_tiles(u, next_turn_index())) if planning else minf(u.budget, float(move_tiles(u)))) + 0.05
 	var start := u.cell()
 	out[start] = 0.0
 	var open := [start]
@@ -226,9 +228,14 @@ func reach_cells(u: BUnit) -> Dictionary:
 	return out
 
 
+## The turn that starts when the plan phase ends.
+func next_turn_index() -> int:
+	return roundi(time / TURN)
+
+
 ## Enemies this hero could hit this turn (walk + its reach).
-func attackable(u: BUnit) -> Array:
-	var cells := reach_cells(u)
+func attackable(u: BUnit, planning: bool = false) -> Array:
+	var cells := reach_cells(u, planning)
 	var res := []
 	for e: BUnit in units:
 		if not can_target(u.team, e):
@@ -295,9 +302,13 @@ func sky() -> String:
 
 ## Which kingdom the sky favours now (-1 = nobody).
 func favoured_team() -> int:
+	return favoured_team_at(int(time / TURN))
+
+
+func favoured_team_at(turn_index: int) -> int:
 	if no_sky:
 		return -1
-	match sky():
+	match sky_at(turn_index):
 		"day": return 0
 		"night": return 1
 	return -1
@@ -459,6 +470,7 @@ func step(dt: float) -> void:
 
 func _tick(dt: float) -> void:
 	time += dt
+	time = roundf(time * 10000.0) / 10000.0   # no creeping rounding error: turns end exactly
 	_tick_n += 1
 	var turn_index := int(time / TURN)
 	if turn_index != _sky_turn:

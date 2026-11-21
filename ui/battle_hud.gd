@@ -267,7 +267,7 @@ func _build_bottom() -> void:
 	side.add_child(plan_row)
 	_upgrade = UiKit.button("", UiKit.BUTTON_BRONZE, 16)
 	_upgrade.custom_minimum_size = Vector2(190, 46)
-	_upgrade.tooltip_text = "המגדלים יורים חזק יותר, השער והמגדלים מתחזקים ומתרפאים"
+	_upgrade.tooltip_text = "השער מתחזק ומתרפא, והמלך מכה חזק יותר"
 	_upgrade.pressed.connect(func(): upgrade_pressed.emit())
 	side.add_child(_upgrade)
 	# the powers, the plan and the upgrade float above the bottom-right corner
@@ -346,7 +346,7 @@ func show_unit_info(u: BUnit) -> void:
 	head.add_child(pic)
 	var nv := VBoxContainer.new()
 	nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var nm := UiKit.label(HeroTexts.name_of(u.kind) if not u.structure else {"gate": "שער", "tower": "מגדל", "wall": "חומת מגן"}.get(u.kind, ""), 24, UiKit.TEXT, 800)
+	var nm := UiKit.label(HeroTexts.name_of(u.kind) if not u.structure else {"gate": "שער", "wall": "חומת מגן"}.get(u.kind, ""), 24, UiKit.TEXT, 800)
 	nv.add_child(nm)
 	nv.add_child(UiKit.label("ממלכת השמש" if u.team == 0 else "אויב · ממלכת האופל", 14, UiKit.ACCENT if u.team == 1 else UiKit.TEXT_SOFT))
 	head.add_child(nv)
@@ -393,7 +393,12 @@ func show_unit_info(u: BUnit) -> void:
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_info_box.add_child(d)
 	if u.kind == "king":
-		_info_box.add_child(UiKit.label(("מוגן מאחורי החומות" if not battle.king_exposed(u.team) else "חשוף! אפשר לתקוף אותו"), 15, UiKit.ACCENT, 700))
+		var kl := UiKit.label("את המלך אי אפשר לפצוע. " + HeroTexts.MODE_GOAL.get(battle.mode, ""), 15, UiKit.ACCENT, 700)
+		kl.custom_minimum_size = Vector2(230, 0)
+		kl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_info_box.add_child(kl)
+	elif not u.structure and u.team != Battle.NEUTRAL:
+		_info_box.add_child(UiKit.label("👣 %d משבצות בתור" % battle.move_tiles(u, battle.next_turn_index()), 15, UiKit.GOLD, 700))
 
 
 # ------------------------------------------------------------------ summary & cinema
@@ -425,8 +430,8 @@ func show_turn_summary(n: int, s: Dictionary, b: Battle) -> void:
 	lines.append(["◆ +%d אנרגיה" % int(s.get("energy", 0)), Style.CRYSTAL])
 
 	for st in s.get("structures", []):
-		var what: String = "מגדל" if st[0] == "tower" else "שער"
-		lines.append([("%s של האויב נפל!" % what) if st[1] == 1 else ("%s שלנו נפל!" % what), UiKit.ACCENT])
+		lines.append([("השער של האויב נפל!") if st[1] == 1 else ("השער שלנו נפל!"), UiKit.ACCENT])
+	lines.append([mode_line(b, 0), UiKit.GOLD])
 	for l in lines:
 		var lab := UiKit.label(l[0], 16, l[1], 700)
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -595,16 +600,9 @@ func refresh(bs: BattleScreen) -> void:
 	_clear_btn.visible = planning and not bs.plan.is_empty()
 	for t in _team_bars:
 		var team: int = t[0]
-		var gate := "נפל"
-		var towers := 0
-		var k := battle.king(team)
-		for u: BUnit in battle.units:
-			if u.team == team and u.kind == "gate":
-				gate = "%d%%" % int(100 * u.hp / u.max_hp)
-			if u.team == team and u.kind == "tower":
-				towers += 1
-		t[1].value = battle._score(team) / 4.0
-		t[2].text = "שער %s · מגדלים %d/2 · מלך %d%%" % [gate, towers, int(100 * k.hp / k.max_hp) if k else 0]
+		# the bar shows how close this kingdom is to winning the game mode
+		t[1].value = battle.mode_progress(team)
+		t[2].text = mode_line(battle, team)
 	_refresh_abilities(bs)
 	if _info.visible and _info_unit >= 0 and battle.unit(_info_unit) == null:
 		_info.visible = false
@@ -707,3 +705,24 @@ func speech(screen_pos: Vector2, text: String) -> void:
 	tw.tween_interval(1.8)
 	tw.tween_property(p, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(p.queue_free)
+
+
+## One short line: how far this kingdom got in the game mode.
+static func mode_line(battle: Battle, team: int) -> String:
+	var g := battle.gate(1 - team)
+	var whose := "שלהם" if team == 0 else "שלנו"
+	var gate_txt := ("השער %s %d%%" % [whose, int(100 * g.hp / g.max_hp)]) if g != null else "השער %s פרוץ" % whose
+	match battle.mode:
+		"mate":
+			var zone := battle.king_zone(1 - team)
+			return "%s · מט: %d/%d" % [gate_txt, battle.mate_cells[1 - team].size(), zone.size()]
+		"crown":
+			for cr in battle.crowns:
+				if cr["team"] != team and cr["carrier"] >= 0:
+					return "הכתר שלהם בידיים שלנו!" if team == 0 else "הכתר שלנו אצלם!"
+			return "%s · הכתר על הכסא" % gate_txt
+		"throne":
+			return "%s · על הכסא: %d/3 תורות" % [gate_txt, int(battle.throne_time[team] / Battle.TURN)]
+		"runes":
+			return "רונות אצל המלך: %d/3" % battle.rune_count[team]
+	return gate_txt
