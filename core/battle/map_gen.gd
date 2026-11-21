@@ -1,7 +1,7 @@
 class_name MapGen
 extends RefCounted
 ## Builds a battle map: grass, forests, hills, a river with bridges, crystal
-## mines and a walled palace for each kingdom (gate + two towers, king inside).
+## mines and a walled palace for each kingdom (a gate, the king inside).
 ## The map is point-symmetric (turned 180 degrees it looks the same), so it is
 ## fair for both sides. Sizes: small / medium / large (data/battle.json).
 
@@ -11,7 +11,8 @@ extends RefCounted
 ##
 ## Returns { w, h, fog, biome, terrain: PackedInt32Array, mines: [Vector2i],
 ##           shrines: [ { pos, type } ], camps: [Vector2i],
-##           palaces: [ { gate, towers: [a, b], king, spawn, floor: Rect2i } for team 0 and 1 ] }
+##           runes: [Vector2i],
+##           palaces: [ { gate, king, seat (throne / crown), spawn, floor: Rect2i } for team 0 and 1 ] }
 static func make(size: String, seed_value: int = 7, biome: String = "meadow") -> Dictionary:
 	var info: Dictionary = BattleData.cfg()["maps"][size]
 	var w := int(info["w"])
@@ -81,6 +82,10 @@ static func make(size: String, seed_value: int = 7, biome: String = "meadow") ->
 	# the monster camp guards the side of the river, far from the palace gate
 	var camp_half := Vector2i(w - 2, mid - 1)
 	put.call(camp_half.x, camp_half.y, Chess.Terrain.PLAIN)
+	# magic rune stones (game mode "runes"): two spots on each half
+	var runes_half := [Vector2i(cx, mid - 2), Vector2i(2, mid - 1)]
+	for r in runes_half:
+		put.call(r.x, r.y, Chess.Terrain.PLAIN)
 	# Mirror the bottom half onto the top half.
 	for y in mid:
 		for x in w:
@@ -102,9 +107,13 @@ static func make(size: String, seed_value: int = 7, biome: String = "meadow") ->
 		shrines.append(sh)
 		shrines.append({ "pos": Vector2i(w - 1 - sh["pos"].x, h - 1 - sh["pos"].y), "type": sh["type"] })
 	var camps := [camp_half, Vector2i(w - 1 - camp_half.x, h - 1 - camp_half.y)]
+	var runes := []
+	for r in runes_half:
+		runes.append(r)
+		runes.append(Vector2i(w - 1 - r.x, h - 1 - r.y))
 	# Lakes must never cut a road: if the two palaces or a mine cannot be reached, dry it up.
 	var spawn_a := Vector2i(cx, 5)
-	var targets := [Vector2i(w - 1 - cx, h - 6)] + mines + camps
+	var targets := [Vector2i(w - 1 - cx, h - 6)] + mines + camps + runes
 	for cells in lakes:
 		if _all_reachable(t, w, h, spawn_a, targets):
 			break
@@ -112,14 +121,15 @@ static func make(size: String, seed_value: int = 7, biome: String = "meadow") ->
 			for cc in [c, Vector2i(w - 1 - c.x, h - 1 - c.y)]:
 				if cc.x >= 0 and cc.y >= 0 and cc.x < w and cc.y < h and t[cc.y * w + cc.x] == Chess.Terrain.WATER and cc.y != mid and not (h % 2 == 0 and cc.y == mid + 1):
 					t[cc.y * w + cc.x] = Chess.Terrain.PLAIN
-	var sun := { "gate": Vector2i(cx, 4), "towers": [Vector2i(cx - 4, 4), Vector2i(cx + 4, 4)],
-		"king": Vector2i(cx, 1), "spawn": Vector2i(cx, 5), "floor": Rect2i(cx - 3, 0, 7, 4) }
+	var sun := { "gate": Vector2i(cx, 4), "king": Vector2i(cx, 1), "seat": Vector2i(cx, 0),
+		"spawn": Vector2i(cx, 5), "floor": Rect2i(cx - 3, 0, 7, 4) }
 	var flip := func(v: Vector2i) -> Vector2i: return Vector2i(w - 1 - v.x, h - 1 - v.y)
-	var void_ := { "gate": flip.call(sun["gate"]), "towers": [flip.call(sun["towers"][0]), flip.call(sun["towers"][1])],
+	var void_ := { "gate": flip.call(sun["gate"]), "seat": flip.call(sun["seat"]),
 		"king": flip.call(sun["king"]), "spawn": flip.call(sun["spawn"]),
 		"floor": Rect2i(w - 1 - (cx + 3), h - 4, 7, 4) }
 	return { "w": w, "h": h, "fog": bool(info.get("fog", false)), "terrain": t, "mines": mines,
-		"palaces": [sun, void_], "size": size, "biome": biome, "shrines": shrines, "camps": camps }
+		"palaces": [sun, void_], "size": size, "biome": biome, "shrines": shrines, "camps": camps,
+		"runes": runes }
 
 
 ## Can every target square be reached on foot from `from`?

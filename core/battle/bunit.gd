@@ -1,10 +1,10 @@
 class_name BUnit
 extends RefCounted
-## Anything that fights in a real-time battle: a hero, the king, a gate, a tower
-## or a magic wall. Positions are in squares (x, y), y = 0 at the Sun's edge.
+## Anything that fights in a real-time battle: a hero, the king, a gate or a
+## magic wall. Positions are in squares (x, y), y = 0 at the Sun's edge.
 
 var id: int = 0
-var kind: String = ""        ## hero id ("soldier", "dragon"...) or "gate" / "tower" / "wall"
+var kind: String = ""        ## hero id ("soldier", "dragon"...) or "gate" / "wall"
 var team: int = 0
 var pos := Vector2.ZERO
 var hp: float = 100.0
@@ -26,6 +26,8 @@ var revealed_until := -1.0    ## stealth: visible until then after attacking
 var last_hit_id := -1         ## the unit that hit it last (arena scenes)
 var last_hit_kind := ""
 var flying := false
+var budget := 0.0             ## squares it may still walk this turn (chess-like moves)
+var carry := ""               ## "crown" or "rune" while carrying one
 var data: Dictionary = {}
 
 ## Orders: "" (idle), "move" (walk to order_pos, fighting on the way) or "attack" (a target).

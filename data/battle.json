@@ -8,13 +8,7 @@
 	},
 	"structures": {
 		"gate": {
-			"hp": 2600
-		},
-		"tower": {
-			"hp": 1700,
-			"dmg": 90,
-			"rate": 1.0,
-			"range": 5.0
+			"hp": 1800
 		},
 		"wall": {
 			"hp": 700
