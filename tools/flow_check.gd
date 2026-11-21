@@ -46,14 +46,17 @@ func _init() -> void:
 	print("1 tutorial battle started: ", bs != null, " guide: ", bs.tutorial != null)
 	_shot("01_tutorial")
 	var cam := root.get_camera_3d()
-	# drag-select the army
-	var army := bs.battle.heroes_of(0)
-	bs._select(army.map(func(u): return u.id), false)
-	print("2 selected ", bs.selected.size())
+	# chess-like: click a hero, then click one of its lit squares (real screen clicks)
+	var army := bs.battle.heroes_of(0).filter(func(u): return u.role() != "miner")
+	var hero: BUnit = army[0]
+	bs._board_click(cam.unproject_position(bs.view.view(hero.id).global_position + Vector3(0, 0.5, 0)))
+	print("2 selected ", bs.selected, " = ", hero.id)
 	await _wait(0.3)
-	var target := bs.view.to_world(Vector2(7, 9))
-	bs._order(cam.unproject_position(target))
-	print("3 ordered: ", army.map(func(u): return u.order))
+	var goal := hero.cell() + Vector2i(0, 2)
+	print("2b lit squares ", bs.view.reach_now.size(), " goal lit: ", bs.view.reach_now.has(goal))
+	_shot("01b_lit_squares")
+	bs._board_click(cam.unproject_position(bs.view.to_world(Vector2(goal))))
+	print("3 ordered: ", hero.order, " to ", hero.order_pos)
 	await _wait(0.5)
 	bs.battle.energy[0] = 20
 	bs._on_card(1)   # archer (planned)
@@ -79,11 +82,9 @@ func _init() -> void:
 	print("9 skipped to turn ", bs.turn)
 	_select_enemy(bs)
 	_shot("03c_info")
-	# win: break the gate and defeat the king
-	for u: BUnit in bs.battle.units.duplicate():
-		if u.team == 1 and u.kind == "gate":
-			bs.battle._damage(u, 1e9, null)
-	bs.battle._damage(bs.battle.king(1), 1e9, null)
+	# win: break the gate and checkmate the king
+	bs.battle._damage(bs.battle.gate(1), 1e9, null)
+	bs.battle._win(0, "mate")
 	await _wait(3.5)
 	_shot("04_results")
 	var panel: ResultsPanel = null

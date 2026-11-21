@@ -38,7 +38,9 @@
 			"max": 1,
 			"cost": 150,
 			"unlocks": [
-				"shield_wall"
+				"shield_wall",
+				"bard",
+				"rage_potion"
 			]
 		},
 		"mage_tower": {
@@ -48,14 +50,17 @@
 				"queen",
 				"healer",
 				"ice_witch",
-				"fire_mage"
+				"fire_mage",
+				"druid",
+				"lightning"
 			]
 		},
 		"shadow_den": {
 			"max": 1,
 			"cost": 400,
 			"unlocks": [
-				"assassin"
+				"assassin",
+				"necromancer"
 			],
 			"trophies": 150
 		},
@@ -64,7 +69,9 @@
 			"cost": 500,
 			"unlocks": [
 				"giant",
-				"ballista"
+				"ballista",
+				"golem",
+				"earthquake"
 			],
 			"trophies": 300
 		},

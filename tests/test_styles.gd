@@ -131,3 +131,42 @@ func test_soldiers_fight_better_together() -> void:
 	b._spawn_hero(0, "soldier", Vector2(7.5, 7))
 	b._hit(s1, e)
 	check(e.max_hp - e.hp > alone * 1.25, "pack bonus")
+
+
+func test_bard_song_makes_friends_attack_faster() -> void:
+	var b := _empty()
+	var s := b._spawn_hero(0, "soldier", Vector2(7, 7))
+	var e := b._spawn_hero(1, "shield", Vector2(7, 8))
+	b._hit(s, e)
+	var plain := s.attack_ready_at - b.time
+	s.attack_ready_at = 0.0
+	b._spawn_hero(0, "bard", Vector2(6, 7))
+	b._hit(s, e)
+	check(s.attack_ready_at - b.time < plain - 0.05, "faster with a bard: %s vs %s" % [s.attack_ready_at - b.time, plain])
+
+
+func test_golem_shrugs_off_arrows() -> void:
+	var b := _empty()
+	var g := b._spawn_hero(0, "golem", Vector2(7, 7))
+	var a := b._spawn_hero(1, "archer", Vector2(7, 11))
+	b._damage(g, 100.0, a)
+	check(absf(g.max_hp - g.hp - 50.0) < 0.01, "half damage from far: %s" % (g.max_hp - g.hp))
+
+
+func test_necromancer_raises_the_fallen() -> void:
+	var b := _empty()
+	var n := b._spawn_hero(0, "necromancer", Vector2(7, 7))
+	var e := b._spawn_hero(1, "archer", Vector2(7, 9))
+	var before := b.heroes_of(0).size()
+	b._damage(e, 1e6, n)
+	check_eq(b.heroes_of(0).size(), before + 1, "a skeleton rose for the Sun")
+	var s: BUnit = b.heroes_of(0).back()
+	check(s.expires_at > b.time, "only for a while")
+
+
+func test_earthquake_hits_gates_hard() -> void:
+	var b := Battle.create("small", [["earthquake", "soldier"], ["soldier"]])
+	b.energy[0] = 20
+	var g := b.gate(1)
+	check(b.play_card(0, 0, g.pos), "earthquake")
+	check_eq(g.max_hp - g.hp, 160.0 * 3.0, "three times on the gate")

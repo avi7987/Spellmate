@@ -394,6 +394,99 @@
 		},
 		"ghost_knight": {
 			"scale": 0.85
+		},
+		"druid": {
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape"
+			],
+			"scale": 0.5,
+			"tint": "#b8f0a8",
+			"extras": [
+				"leaf_crown",
+				"vine_orb"
+			],
+			"attach": [
+				{
+					"model": "res://assets/characters/kaykit/props/staff.gltf",
+					"bone": "handslot.r",
+					"texture": "mage_texture"
+				}
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Summon",
+			"idle": "Idle",
+			"move": "Walking_A",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"bard": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape"
+			],
+			"scale": 0.48,
+			"tint": "#ffe2b8",
+			"extras": [
+				"bard_hat",
+				"lute"
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Cheer",
+			"idle": "Idle",
+			"move": "Walking_B",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"necromancer": {
+			"model": "res://assets/characters/kaykit/Skeleton_Mage.glb",
+			"texture": "skeleton_texture",
+			"show": [
+				"Skeleton_Mage_Hat"
+			],
+			"scale": 0.54,
+			"glow_eyes": true,
+			"tint": "#d8b8ff",
+			"extras": [
+				"horns",
+				"skull_orb"
+			],
+			"attach": [
+				{
+					"model": "res://assets/characters/kaykit/props/Skeleton_Staff.gltf",
+					"bone": "handslot.r",
+					"texture": "skeleton_texture"
+				}
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Summon",
+			"idle": "Idle",
+			"move": "Walking_C",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"golem": {
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [],
+			"scale": 0.82,
+			"tint": "#8c92a0",
+			"extras": [
+				"rock_shoulders",
+				"rune_glow"
+			],
+			"idle": "Unarmed_Idle",
+			"attack": "Unarmed_Melee_Attack_Punch_A",
+			"cast": "Unarmed_Melee_Attack_Kick",
+			"move": "Walking_B",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		}
 	},
 	"shadow": {
@@ -790,6 +883,99 @@
 		},
 		"ghost_knight": {
 			"scale": 0.85
+		},
+		"druid": {
+			"model": "res://assets/characters/kaykit/Rogue_Hooded.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape"
+			],
+			"scale": 0.5,
+			"tint": "#b8f0a8",
+			"extras": [
+				"leaf_crown",
+				"vine_orb"
+			],
+			"attach": [
+				{
+					"model": "res://assets/characters/kaykit/props/staff.gltf",
+					"bone": "handslot.r",
+					"texture": "mage_texture"
+				}
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Summon",
+			"idle": "Idle",
+			"move": "Walking_A",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"bard": {
+			"model": "res://assets/characters/kaykit/Rogue.glb",
+			"texture": "rogue_texture",
+			"show": [
+				"Rogue_Cape"
+			],
+			"scale": 0.48,
+			"tint": "#ffe2b8",
+			"extras": [
+				"bard_hat",
+				"lute"
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Cheer",
+			"idle": "Idle",
+			"move": "Walking_B",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"necromancer": {
+			"model": "res://assets/characters/kaykit/Skeleton_Mage.glb",
+			"texture": "skeleton_texture",
+			"show": [
+				"Skeleton_Mage_Hat"
+			],
+			"scale": 0.54,
+			"glow_eyes": true,
+			"tint": "#d8b8ff",
+			"extras": [
+				"horns",
+				"skull_orb"
+			],
+			"attach": [
+				{
+					"model": "res://assets/characters/kaykit/props/Skeleton_Staff.gltf",
+					"bone": "handslot.r",
+					"texture": "skeleton_texture"
+				}
+			],
+			"attack": "Spellcast_Shoot",
+			"cast": "Spellcast_Summon",
+			"idle": "Idle",
+			"move": "Walking_C",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
+		},
+		"golem": {
+			"model": "res://assets/characters/kaykit/Barbarian.glb",
+			"texture": "barbarian_texture",
+			"show": [],
+			"scale": 0.82,
+			"tint": "#8c92a0",
+			"extras": [
+				"rock_shoulders",
+				"rune_glow"
+			],
+			"idle": "Unarmed_Idle",
+			"attack": "Unarmed_Melee_Attack_Punch_A",
+			"cast": "Unarmed_Melee_Attack_Kick",
+			"move": "Walking_B",
+			"hit": "Hit_A",
+			"death": "Death_A",
+			"victory": "Cheer"
 		}
 	}
 }

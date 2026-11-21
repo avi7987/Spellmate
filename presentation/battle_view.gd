@@ -626,7 +626,7 @@ func play_events(events: Array) -> void:
 					v.play_once("cast")
 				_area_fx(e["ability"], e["pos"], e["radius"], e.get("from", e["pos"]))
 			"spell":
-				if e["card"] in ["ice_bomb", "fire_bomb", "heal_potion", "shield_wall"]:
+				if e["card"] in ["ice_bomb", "fire_bomb", "heal_potion", "shield_wall", "lightning", "rage_potion", "earthquake"]:
 					_spell_show(e["card"], e["pos"], e["radius"], e["team"])
 				else:
 					_area_fx(e["card"], e["pos"], e["radius"], e["pos"])
@@ -964,6 +964,12 @@ func _spell_show(id: String, pos: Vector2, radius: float, team: int) -> void:
 	if id == "shield_wall":
 		_shield_slam(at, team)
 		return
+	if id == "lightning":
+		_lightning(at)
+		return
+	if id == "earthquake":
+		_quake(at, radius)
+		return
 	var from := to_world(Vector2(battle.map["palaces"][team]["gate"])) + Vector3(0, 1.5, 0)
 	var thing := Node3D.new()
 	_fx_root.add_child(thing)
@@ -978,8 +984,8 @@ func _spell_show(id: String, pos: Vector2, radius: float, team: int) -> void:
 			_part(thing, _sphere(0.3), Style.toon(Color(0.12, 0.1, 0.1), 0.3, 0.4), Vector3.ZERO)
 			_part(thing, _cyl_mesh(0.05, 0.05, 0.25), Style.matte(Color(0.55, 0.4, 0.25)), Vector3(0.12, 0.3, 0)).rotation_degrees.z = -30
 			_part(thing, _sphere(0.08), Style.glow(Color(1.0, 0.7, 0.2), 4.0), Vector3(0.2, 0.44, 0))
-		"heal_potion":
-			_part(thing, _sphere(0.24), Style.glow(Color(1.0, 0.3, 0.4), 1.2), Vector3(0, -0.05, 0))
+		"heal_potion", "rage_potion":
+			_part(thing, _sphere(0.24), Style.glow(Color(1.0, 0.3, 0.4) if id == "heal_potion" else Color(1.0, 0.35, 0.1), 1.2), Vector3(0, -0.05, 0))
 			_part(thing, _cyl_mesh(0.07, 0.09, 0.22), Style.toon(Color(0.85, 0.9, 1.0), 0.0, 0.2), Vector3(0, 0.25, 0))
 			_part(thing, _cyl_mesh(0.08, 0.08, 0.08), Style.matte(Color(0.55, 0.35, 0.2)), Vector3(0, 0.38, 0))
 	thing.position = from
@@ -1001,6 +1007,11 @@ func _spell_land(id: String, at: Vector3, radius: float) -> void:
 			_fire_burst(at, radius)
 		"heal_potion":
 			_heal_burst(at, radius)
+		"rage_potion":
+			Effects.burst(_fx_root, at + Vector3(0, 0.3, 0), Color(0.85, 0.95, 1.0), 24, 3.0, 0.05)
+			_disc(at, Color(1.0, 0.3, 0.15, 0.6), radius, 0.3, 1.0)
+			Effects.pillar(_fx_root, at, Color(1.0, 0.35, 0.2), 4.0, 0.9)
+			Effects.burst(_fx_root, at + Vector3(0, 0.6, 0), Color(1.0, 0.4, 0.15), 50, 4.0, 0.07)
 
 
 func _sphere(r: float) -> SphereMesh:
@@ -1147,3 +1158,62 @@ func _shield_slam(at: Vector3, team: int) -> void:
 		ts.tween_callback(sh.queue_free)
 	Effects.ring(_fx_root, at, gold, 3.0, 0.6)
 	_disc(at, Color(1.0, 0.85, 0.35, 0.5), 1.2, 0.25, 0.8)
+
+
+## A jagged bolt from the sky, a white flash and a hard shake.
+func _lightning(at: Vector3) -> void:
+	var pts := [at + Vector3(0, 9, 0)]
+	for i in 7:
+		pts.append(at + Vector3(randf_range(-0.6, 0.6), 9.0 - (i + 1) * 9.0 / 8.0, randf_range(-0.6, 0.6)))
+	pts.append(at + Vector3(0, 0.1, 0))
+	var mat := Style.glow(Color(1.0, 0.98, 0.75), 6.0)
+	var parts: Array = []
+	for i in pts.size() - 1:
+		var a: Vector3 = pts[i]
+		var b: Vector3 = pts[i + 1]
+		var mi := MeshInstance3D.new()
+		mi.mesh = _cyl_mesh(0.07, 0.07, a.distance_to(b))
+		mi.material_override = mat
+		_fx_root.add_child(mi)
+		mi.look_at_from_position((a + b) / 2.0, b, Vector3.RIGHT if absf((b - a).normalized().y) > 0.99 else Vector3.UP)
+		mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+		parts.append(mi)
+	var tw := _fx_root.create_tween()
+	tw.tween_interval(0.12)
+	tw.tween_callback(func():
+		for m in parts:
+			m.visible = false)
+	tw.tween_interval(0.06)
+	tw.tween_callback(func():
+		for m in parts:
+			m.visible = true)
+	tw.tween_interval(0.15)
+	tw.tween_callback(func():
+		for m in parts:
+			m.queue_free())
+	_disc(at, Color(1.0, 0.95, 0.6, 0.8), 1.4, 0.15, 0.5)
+	Effects.burst(_fx_root, at + Vector3(0, 0.3, 0), Color(1.0, 0.95, 0.5), 40, 5.0, 0.06)
+	if camera_rig:
+		camera_rig.shake(0.3, 0.35)
+
+
+## The ground cracks and jumps: rocks fly, dust rises, the camera shakes hard.
+func _quake(at: Vector3, radius: float) -> void:
+	if camera_rig:
+		camera_rig.shake(0.45, 0.9)
+	_disc(at, Color(0.45, 0.32, 0.2, 0.75), radius, 0.4, 1.6)
+	var rock := Style.toon(Color(0.45, 0.4, 0.36), 0.0, 1.0)
+	for i in 16:
+		var a := randf() * TAU
+		var d := randf_range(0.2, radius)
+		var r := _part(_fx_root, _box_mesh(Vector3.ONE * randf_range(0.12, 0.3)), rock, at + Vector3(cos(a) * d, 0.1, sin(a) * d))
+		r.rotation = Vector3(randf() * TAU, randf() * TAU, 0)
+		var tw := r.create_tween()
+		tw.tween_property(r, "position:y", at.y + randf_range(0.6, 1.6), 0.25).set_delay(randf() * 0.3).set_ease(Tween.EASE_OUT)
+		tw.tween_property(r, "position:y", at.y + 0.05, 0.3).set_ease(Tween.EASE_IN)
+		tw.tween_interval(0.6)
+		tw.tween_property(r, "scale", Vector3.ONE * 0.01, 0.3)
+		tw.tween_callback(r.queue_free)
+	for i in 6:
+		var a2 := TAU * i / 6.0
+		Effects.burst(_fx_root, at + Vector3(cos(a2) * radius * 0.6, 0.15, sin(a2) * radius * 0.6), Color(0.6, 0.5, 0.38), 12, 2.0, 0.1)

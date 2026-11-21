@@ -577,7 +577,11 @@ func _unit_at(screen: Vector2) -> BUnit:
 	if id >= 0:
 		return battle.unit(id)
 	var g := view.ground_at_screen(screen)
-	var cell := Vector2i(roundi(g.x), roundi(g.y))
+	return _unit_on_cell(Vector2i(roundi(g.x), roundi(g.y)))
+
+
+## Whoever stands on a square (own heroes first).
+func _unit_on_cell(cell: Vector2i) -> BUnit:
 	var best: BUnit = null
 	for u: BUnit in battle.units:
 		if u.cell() == cell and (best == null or (u.team == 0 and best.team != 0)):
@@ -587,24 +591,31 @@ func _unit_at(screen: Vector2) -> BUnit:
 
 ## One left click on the board (plan phase), chess-like:
 ##   own hero -> choose it   lit square -> walk there   red enemy -> attack it
+## The SQUARE under the mouse wins over a body that only sticks up into it
+## (heroes are tall, so a click on a square behind one used to pick that hero).
 func _board_click(screen: Vector2) -> void:
 	var g := view.ground_at_screen(screen)
 	var cell := Vector2i(roundi(g.x), roundi(g.y))
-	var u := _unit_at(screen)
+	var body: BUnit = battle.unit(view.unit_at_screen(screen))
+	var on_cell := _unit_on_cell(cell)
 	var hero: BUnit = battle.unit(selected[0]) if selected.size() == 1 else null
 	if hero != null:
-		if u != null and u.team != 0 and view.attack_now.has(u.id):
-			battle.order_attack([hero.id], u.id)
-			view.order_marker(u.pos, true)
-			Sfx.play("order")
-			_say(hero, 0.35)
-			return
-		if view.reach_now.has(cell) and cell != hero.cell() and (u == null or u.team != 0 or u.structure):
+		for t: BUnit in [on_cell, body]:
+			if t != null and t.team != 0 and view.attack_now.has(t.id):
+				battle.order_attack([hero.id], t.id)
+				view.order_marker(t.pos, true)
+				Sfx.play("order")
+				_say(hero, 0.35)
+				return
+		if view.reach_now.has(cell) and cell != hero.cell() and (on_cell == null or on_cell.team != 0 or on_cell.structure):
 			battle.order_move([hero.id], Vector2(cell))
 			view.order_marker(Vector2(cell), false)
 			Sfx.play("order")
 			_say(hero, 0.25)
 			return
+	var u: BUnit = on_cell if on_cell != null else body
+	if body != null and body.team == 0 and (u == null or u.team != 0):
+		u = body
 	if u != null and u.team == 0 and not u.structure and u.kind != "king":
 		_select([u.id], false)
 		_say(u, 0.25)

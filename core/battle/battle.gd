@@ -58,6 +58,7 @@ var _energy_well_timer := 0.0
 var _next_pickup := 1
 var _tick_n := 0
 var _order_rng := RandomNumberGenerator.new()
+var _raise_ready: Dictionary = {}
 ## Which power each hero uses, per team: { hero id: 0 or 1 } (picked in the deck screen).
 var loadout: Array = [{}, {}]
 ## DAY AND NIGHT: a cycle of SKY_CYCLE turns. Day = the Sun is stronger, night = the
@@ -736,6 +737,11 @@ func _hit(u: BUnit, t: BUnit) -> void:
 	if u.style() == "setup" and time - u.still_since < 1.0:
 		return
 	var slow := 1.5 if u.has_effect("slow", time) else 1.0
+	# a friendly bard close by plays a battle song: 25% faster attacks
+	for f: BUnit in units:
+		if f.team == u.team and f.style() == "song" and f.pos.distance_to(u.pos) <= 2.6:
+			slow *= 0.75
+			break
 	u.attack_ready_at = time + u.rate * slow
 	if u.role() == "healer" and t.team == u.team:
 		events.append({ "type": "attack", "id": u.id, "target": t.id, "ranged": true, "heal": true })
@@ -827,6 +833,9 @@ func _damage(t: BUnit, amount: float, by: BUnit, quiet: bool = false) -> void:
 		return
 	if t.has_effect("shield", time):
 		amount *= 0.5
+	# the stone golem hardly feels shots from far away
+	if t.style() == "stone" and by != null and by.range_ > 2.0:
+		amount *= 0.5
 	t.hp -= amount
 	if by != null:
 		t.last_hit_team = by.team
@@ -870,6 +879,28 @@ func _die(u: BUnit) -> void:
 		_set_cell_open(u.cell(), true)
 	if u.carry != "":
 		events.append({ "type": "drop", "what": u.carry, "pos": u.pos, "team": u.team })
+	_raise_dead(u)
+
+
+## A necromancer near a fallen hero raises it as a skeleton warrior of his own
+## kingdom for a few turns (at most one every 4 seconds per necromancer).
+func _raise_dead(dead: BUnit) -> void:
+	if dead.structure or dead.kind == "king" or dead.data.get("raised", false):
+		return
+	for n: BUnit in units:
+		if n.style() != "raise" or n.team == dead.team or n.team == NEUTRAL or n.hp <= 0.0:
+			continue
+		if n.pos.distance_to(dead.pos) > 3.0 or time < float(_raise_ready.get(n.id, 0.0)):
+			continue
+		_raise_ready[n.id] = time + 4.0
+		var s := _spawn_hero(n.team, "soldier", dead.pos)
+		s.data = s.data.duplicate()
+		s.data["raised"] = true
+		s.max_hp *= 0.6
+		s.hp = s.max_hp
+		s.expires_at = time + 15.0
+		events.append({ "type": "raise", "id": s.id, "by": n.id, "pos": dead.pos })
+		return
 
 
 func respawn_time(_card_id: String) -> float:
@@ -889,7 +920,7 @@ func _resolve(ab: Dictionary, team: int, pos: Vector2, caster: BUnit) -> void:
 					continue
 				var dmg := float(ab.get("damage", 0)) * mult
 				if e.structure:
-					dmg *= 0.5
+					dmg *= float(ab.get("structure_mult", 0.5))
 				_damage(e, dmg, caster)
 				if effect != "" and e.hp > 0.0 and not e.structure:
 					e.effects[effect] = time + dur

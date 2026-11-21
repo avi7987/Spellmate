@@ -147,3 +147,15 @@ func test_daily_quests() -> void:
 	check_eq(p.claim_quest(0), 0, "only once")
 	p.refresh_quests("2026-01-02", _rng())
 	check(not p.quests[0]["claimed"], "new day, new quests")
+
+
+func test_new_cards_of_built_buildings_join_old_saves() -> void:
+	var p := Profile.new_profile()
+	p.gold = 9999
+	p.build("mage_tower")
+	p.collection.erase("druid")
+	var path := "user://test_profile_migrate.json"
+	p.save(path)
+	var q := Profile.load_or_new(path)
+	check(q.collection.has("druid"), "the druid came with the mage tower")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

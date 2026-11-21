@@ -62,6 +62,14 @@ static func load_or_new(path: String = SAVE_PATH) -> Profile:
 	p.quests_day = str(d.get("quests_day", ""))
 	if d.get("worlds_today", null) is Array:
 		p._worlds_today = d["worlds_today"]
+	# cards added to a building in a newer version of the game join the collection
+	for b in meta()["buildings"]:
+		if int(p.buildings.get(b, 0)) > 0:
+			for c in meta()["buildings"][b].get("unlocks", []):
+				if not p.collection.has(c):
+					p.collection.append(c)
+				if not p.heroes.has(c):
+					p.heroes[c] = { "level": 1, "xp": 0 }
 	for k in p.heroes:
 		p.heroes[k]["level"] = int(p.heroes[k]["level"])
 		p.heroes[k]["xp"] = int(p.heroes[k]["xp"])

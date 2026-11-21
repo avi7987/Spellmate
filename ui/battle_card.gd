@@ -238,6 +238,24 @@ func _spell_icon(id: String, p: Vector2, s: float) -> void:
 			draw_rect(Rect2(p + Vector2(-s * 0.25, -s * 1.0), Vector2(s * 0.5, s * 0.2)), Color(0.55, 0.35, 0.2))
 			draw_rect(Rect2(p + Vector2(-s * 0.08, 0), Vector2(s * 0.16, s * 0.5)), Color.WHITE)
 			draw_rect(Rect2(p + Vector2(-s * 0.25, s * 0.17), Vector2(s * 0.5, s * 0.16)), Color.WHITE)
+		"lightning":
+			var bolt := PackedVector2Array([p + Vector2(s * 0.2, -s), p + Vector2(-s * 0.35, s * 0.05), p + Vector2(0, s * 0.05),
+				p + Vector2(-s * 0.2, s), p + Vector2(s * 0.4, -s * 0.15), p + Vector2(0, -s * 0.15)])
+			draw_colored_polygon(bolt, Color(1.0, 0.92, 0.3))
+			draw_polyline(bolt + PackedVector2Array([bolt[0]]), Color(0.5, 0.3, 0.0), 2.0, true)
+		"rage_potion":
+			draw_circle(p + Vector2(0, s * 0.25), s * 0.7, Color(0.95, 0.35, 0.1))
+			draw_rect(Rect2(p + Vector2(-s * 0.2, -s * 0.85), Vector2(s * 0.4, s * 0.6)), Color(0.85, 0.85, 0.9))
+			draw_rect(Rect2(p + Vector2(-s * 0.25, -s * 1.0), Vector2(s * 0.5, s * 0.2)), Color(0.55, 0.35, 0.2))
+			for k in 3:
+				var fx := p + Vector2((k - 1) * s * 0.3, s * 0.2)
+				draw_colored_polygon(PackedVector2Array([fx + Vector2(-s * 0.12, s * 0.2), fx + Vector2(0, -s * 0.3), fx + Vector2(s * 0.12, s * 0.2)]), Color(1.0, 0.85, 0.3))
+		"earthquake":
+			draw_rect(Rect2(p + Vector2(-s, s * 0.1), Vector2(s * 2, s * 0.7)), Color(0.45, 0.32, 0.2))
+			draw_polyline(PackedVector2Array([p + Vector2(-s * 0.8, s * 0.3), p + Vector2(-s * 0.3, s * 0.5), p + Vector2(0, s * 0.25),
+				p + Vector2(s * 0.3, s * 0.6), p + Vector2(s * 0.8, s * 0.35)]), Color(0.12, 0.08, 0.05), 4.0, true)
+			for k in 3:
+				draw_rect(Rect2(p + Vector2(-s * 0.6 + k * s * 0.5, -s * 0.6 + (k % 2) * s * 0.25), Vector2(s * 0.25, s * 0.25)), Color(0.6, 0.55, 0.5))
 		"shield_wall":
 			for i in 3:
 				var c := p + Vector2((i - 1) * s * 0.65, 0)

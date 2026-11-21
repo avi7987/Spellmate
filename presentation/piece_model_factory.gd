@@ -227,6 +227,39 @@ static func _add_extra(model: Node3D, what: String, color: int) -> void:
 			if head: _add(head, _box(Vector3(0.75, 0.2, 0.1)), Style.cloth(Color(0.08, 0.06, 0.08)), Vector3(0, 0.38, 0.5))
 		"belly":
 			if chest: _add(chest, _sphere(0.6), Style.toon(Style.SKIN), Vector3(0, 0.0, 0.25), Vector3.ZERO, Vector3(1, 0.9, 0.7))
+		"leaf_crown":
+			if head:
+				for i in 7:
+					var a := TAU * i / 7.0
+					_add(head, _sphere(0.16), Style.toon(Color(0.35, 0.75, 0.25)), Vector3(sin(a) * 0.48, 0.95, cos(a) * 0.48), Vector3.ZERO, Vector3(1.4, 0.5, 0.8))
+				_add(head, _sphere(0.09), Style.glow(Color(1.0, 0.5, 0.75), 1.5), Vector3(0.3, 1.05, 0.42))
+		"vine_orb":
+			if hand_l: _add(hand_l, _sphere(0.24), Style.glow(Color(0.45, 1.0, 0.35), 1.6), Vector3(0, 0.3, 0.1))
+		"bard_hat":
+			if head:
+				_add(head, _cyl(0.62, 0.62, 0.05), Style.cloth(Color(0.25, 0.55, 0.3)), Vector3(0, 0.85, 0), Vector3(-8, 0, 8))
+				_add(head, _cyl(0.2, 0.45, 0.4), Style.cloth(Color(0.25, 0.55, 0.3)), Vector3(0, 1.05, 0), Vector3(0, 0, 10))
+				_add(head, _box(Vector3(0.06, 0.8, 0.14)), Style.toon(Color(0.95, 0.85, 0.2)), Vector3(-0.3, 1.35, -0.2), Vector3(-30, 0, 25))
+		"lute":
+			if chest:
+				_add(chest, _sphere(0.36), wood, Vector3(-0.15, 0.1, 0.5), Vector3.ZERO, Vector3(1, 1.2, 0.45))
+				_add(chest, _box(Vector3(0.1, 0.8, 0.06)), Style.toon(Color(0.3, 0.18, 0.08)), Vector3(0.18, 0.55, 0.5), Vector3(0, 0, -40))
+				_add(chest, _sphere(0.1), Style.toon(Color(0.1, 0.06, 0.03)), Vector3(-0.15, 0.12, 0.66))
+		"horns":
+			if head:
+				for x in [-1.0, 1.0]:
+					_add(head, _cyl(0.0, 0.13, 0.6), Style.toon(Color(0.2, 0.15, 0.25)), Vector3(x * 0.42, 1.15, 0.1), Vector3(0, 0, -x * 35))
+		"skull_orb":
+			if hand_l:
+				_add(hand_l, _sphere(0.22), Style.glow(Color(0.65, 0.3, 1.0), 2.0), Vector3(0, 0.32, 0.1))
+				_add(hand_l, _sphere(0.12), Style.toon(Color(0.92, 0.9, 0.85)), Vector3(0, 0.33, 0.25))
+		"rock_shoulders":
+			if chest:
+				for x in [-1.0, 1.0]:
+					_add(chest, _sphere(0.42), Style.toon(Color(0.5, 0.5, 0.52), 0.0, 1.0), Vector3(x * 0.6, 0.55, 0), Vector3(20, 30, 10), Vector3(1.1, 0.8, 1.0))
+				_add(chest, _sphere(0.3), Style.toon(Color(0.45, 0.45, 0.48), 0.0, 1.0), Vector3(0, 0.75, -0.35))
+		"rune_glow":
+			if chest: _add(chest, _box(Vector3(0.3, 0.3, 0.05)), Style.glow(Color(0.4, 0.85, 1.0), 2.4), Vector3(0, 0.35, 0.48), Vector3(0, 0, 45))
 
 
 static func _head_attachment(model: Node3D) -> BoneAttachment3D:
