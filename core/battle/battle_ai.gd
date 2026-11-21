@@ -191,13 +191,19 @@ func _my_gate(b: Battle) -> BUnit:
 
 
 ## Defend when enemies come near home, attack when the army is big enough.
+## What "attack" means depends on the game mode (Battle.mode).
 func _army(b: Battle) -> void:
 	var home: Vector2 = Vector2(b.map["palaces"][team]["gate"])
 	var army := b.heroes_of(team).filter(func(u): return u.role() != "miner")
 	var invaders := []
 	for e: BUnit in b.units:
-		if e.team != team and not e.structure and e.pos.distance_to(home) < 7.0:
+		if e.team != team and e.team != Battle.NEUTRAL and not e.structure and e.pos.distance_to(home) < 7.0:
 			invaders.append(e)
+	# an enemy carrying our crown or a rune is the most important target
+	var thief: BUnit = null
+	for e: BUnit in b.units:
+		if e.team != team and e.carry != "" and (e.carry == "crown" or b.mode == "runes"):
+			thief = e
 	var power := 0.0
 	for u: BUnit in army:
 		power += b.card_cost(u.kind)
@@ -206,6 +212,8 @@ func _army(b: Battle) -> void:
 		"swarm": need *= 0.7
 		"fortress": need *= 1.6
 		"siege": need *= 1.1
+	if b.mode == "runes":
+		need *= 0.5    # runes lie in the middle: go and get them early
 	if level <= 0:
 		need = 999.0   # tutorial: the computer only defends
 	if power >= need:
@@ -215,6 +223,12 @@ func _army(b: Battle) -> void:
 	var defenders := []
 	var attackers := []
 	for u: BUnit in army:
+		if u.carry != "":
+			_carry_home(b, u)
+			continue
+		if thief != null and (u.pos.distance_to(thief.pos) < 7.0 or not _attacking):
+			b.order_attack([u.id], thief.id)
+			continue
 		if not invaders.is_empty() and (not _attacking or u.pos.distance_to(home) < 9.0):
 			defenders.append(u)
 		elif _attacking:
@@ -224,15 +238,20 @@ func _army(b: Battle) -> void:
 		for u: BUnit in defenders:
 			if u.order == "" or (u.order == "move"):
 				b.order_attack([u.id], t.id)
+	if b.mode == "runes" and level > 0:
+		_rune_hunt(b, attackers if _attacking else army.filter(func(u): return u.carry == "" and not defenders.has(u)))
+		return
 	if not attackers.is_empty():
-		var target := _attack_target(b, attackers[0].pos)
-		if target != null:
+		var g := b.gate(1 - team)
+		if g != null:
 			var ids := []
 			for u: BUnit in attackers:
-				if u.order == "" or (u.order == "move" and u.order_pos.distance_to(target.pos) > 3.0):
+				if u.order == "" or u.target_id != g.id:
 					ids.append(u.id)
 			if not ids.is_empty():
-				b.order_attack(ids, target.id)
+				b.order_attack(ids, g.id)
+		else:
+			_storm_palace(b, attackers)
 	elif not _attacking:
 		# gather in front of the gate
 		var rally := home + Vector2(0, 3 if team == 0 else -3)
@@ -244,17 +263,53 @@ func _army(b: Battle) -> void:
 			b.order_move(ids, rally)
 
 
-func _attack_target(b: Battle, from: Vector2) -> BUnit:
-	var k := b.king(1 - team)
-	if k != null and b.king_exposed(1 - team):
-		return k
-	var best: BUnit = null
-	var best_d := INF
-	for e: BUnit in b.units:
-		if e.team == team or not (e.kind == "gate" or e.kind == "tower"):
+## The gate is down: go for the goal of the game mode inside the enemy palace.
+func _storm_palace(b: Battle, attackers: Array) -> void:
+	var enemy: Dictionary = b.map["palaces"][1 - team]
+	var goal := Vector2(enemy["seat"])
+	if b.mode == "mate":
+		var k := b.king(1 - team)
+		if k != null:
+			goal = k.pos
+	elif b.mode == "crown":
+		for cr in b.crowns:
+			if cr["team"] != team:
+				goal = cr["pos"]
+	var i := 0
+	var ring := [Vector2(0, 0), Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1), Vector2(0, 1), Vector2(0, -1), Vector2(1, 0), Vector2(-1, 0)]
+	for u: BUnit in attackers:
+		# for a checkmate the army spreads around the king; otherwise everyone runs for the goal
+		var off: Vector2 = ring[(i + (1 if b.mode == "mate" else 0)) % ring.size()] * (1.0 if b.mode == "mate" else 0.0) * (1.0 if team == 0 else -1.0)
+		var p := goal + off
+		if u.order != "move" or u.order_pos.distance_to(p) > 0.5:
+			b.order_move([u.id], p)
+		i += 1
+
+
+func _carry_home(b: Battle, u: BUnit) -> void:
+	var to := Vector2(b.map["palaces"][team]["spawn"])
+	if b.mode == "runes":
+		var k := b.king(team)
+		if k != null:
+			to = Vector2(b.map["palaces"][team]["gate"]) + (k.pos - Vector2(b.map["palaces"][team]["gate"])).normalized()
+	if u.order != "move" or u.order_pos.distance_to(to) > 0.5:
+		b.order_move([u.id], to)
+
+
+func _rune_hunt(b: Battle, hunters: Array) -> void:
+	var taken := {}
+	for u: BUnit in hunters:
+		var best = null
+		var best_d := INF
+		for r in b.runes:
+			if r["carrier"] >= 0 or b.time < r["back_at"] or taken.has(r["id"]):
+				continue
+			var d := u.pos.distance_to(r["pos"])
+			if d < best_d:
+				best_d = d
+				best = r
+		if best == null:
 			continue
-		var d := from.distance_to(e.pos) + (2.0 if e.kind == "gate" else 0.0)
-		if d < best_d:
-			best = e
-			best_d = d
-	return best
+		taken[best["id"]] = true
+		if u.order != "move" or u.order_pos.distance_to(best["pos"]) > 0.3:
+			b.order_move([u.id], best["pos"])

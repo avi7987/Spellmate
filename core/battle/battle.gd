@@ -8,7 +8,16 @@ extends RefCounted
 ##   order_move(ids, pos)  order_attack(ids, target_id)
 ##   play_card(team, card, pos)  cast_ability(unit_id, pos)  upgrade_palace(team)
 ## Every hero acts on its own: it fights enemies that come close, miners
-## walk to crystal mines, healers heal friends, towers shoot.
+## walk to crystal mines, healers heal friends.
+##
+## CHESS-LIKE MOVES: every turn a hero may walk only `moves` squares (heroes.json);
+## reach_cells(u) lists the squares it can reach this turn (the screen lights them).
+## The king can never be hurt. GAME MODES (how you win, `mode`):
+##   mate   - checkmate: break the gate, then threaten the king's square and every
+##            square around him; if that is still so when a turn ends, you win
+##   crown  - steal the enemy crown from his throne room and carry it home
+##   throne - keep a hero on the enemy throne for THRONE_TIME seconds (3 turns)
+##   runes  - bring RUNES_TO_WIN magic runes from the field to your own king
 
 const TICK := 0.05
 const BURN_DPS := 45.0
@@ -48,30 +57,49 @@ var _treasure_at := 0.0
 var _energy_well_timer := 0.0
 var _next_pickup := 1
 var _tick_n := 0
+var _order_rng := RandomNumberGenerator.new()
 ## Which power each hero uses, per team: { hero id: 0 or 1 } (picked in the deck screen).
 var loadout: Array = [{}, {}]
 ## DAY AND NIGHT: a cycle of SKY_CYCLE turns. Day = the Sun is stronger, night = the
-## Void is stronger, and after every night comes an ECLIPSE: all powers recharge at once.
+## Void is stronger, and between them comes an ECLIPSE: all powers recharge at once.
+## (An eclipse both before the night and before the day keeps it fair.)
 const TURN := 5.0
-const SKY_CYCLE := ["day", "day", "night", "night", "eclipse"]
+const SKY_CYCLE := ["day", "day", "eclipse", "night", "night", "eclipse"]
 const SKY_BONUS_DMG := 1.3
 const SKY_BONUS_SPEED := 1.15
 var _sky_turn := -1
 ## Where in the day/night cycle this battle starts (random, so neither side always gets the first day).
 var sky_offset := 0
+## Tools only (fairness checks): the sky favours nobody.
+var no_sky := false
 var _acc := 0.0
 var _mine_owner: Dictionary = {}   ## Vector2i -> unit id working it
 var _safety_timer: Array = [0.0, 0.0]
 var _fog_timer := 0.0
 var _visible: Array = [PackedByteArray(), PackedByteArray()]
 
+const MODES := ["mate", "crown", "throne", "runes"]
+const THRONE_TIME := 15.0
+const RUNES_TO_WIN := 3
+const RUNE_BACK := 8.0
+var mode := "mate"
+var in_check: Array = [false, false]      ## is this team's king in check right now?
+var mate_cells: Array = [[], []]          ## threatened squares around this team's king
+var crowns: Array = []                    ## { team, pos, home, carrier }
+var throne_time: Array = [0.0, 0.0]       ## seconds this team sat on the ENEMY throne
+var runes: Array = []                     ## { id, pos, home, carrier, back_at }
+var rune_count: Array = [0, 0]
+
 
 ## decks: two Arrays of 8 card ids. levels: per team { hero id: level }.
-static func create(size: String, decks: Array, team_levels: Array = [{}, {}], seed_value: int = 7, p_biome: String = "meadow") -> Battle:
+static func create(size: String, decks: Array, team_levels: Array = [{}, {}], seed_value: int = 7, p_biome: String = "meadow", p_mode: String = "mate") -> Battle:
 	var b := Battle.new()
 	b.rng.seed = seed_value
+	b._order_rng.seed = seed_value * 31 + 5
+	b.mode = p_mode if p_mode in MODES else "mate"
 	b.biome = p_biome
-	b.sky_offset = b.rng.randi_range(0, SKY_CYCLE.size() - 2)   # never start on an eclipse
+	# every start in the cycle is equally likely, so over many battles no kingdom gets more good turns
+	b.sky_offset = b.rng.randi_range(0, SKY_CYCLE.size() - 1)
 	b.world = BattleData.biome(p_biome)
 	b.map = MapGen.make(size, seed_value, p_biome)
 	b.w = b.map["w"]
@@ -98,6 +126,7 @@ static func create(size: String, decks: Array, team_levels: Array = [{}, {}], se
 			var u := b._spawn_hero(team, hero, p)
 			i += 1
 	b._spawn_monsters()
+	b._setup_mode()
 	b._treasure_at = float(BattleData.biomes().get("treasure", {}).get("first", 12.0))
 	b._update_fog(true)
 	return b
@@ -138,24 +167,79 @@ func is_over() -> bool:
 	return winner >= 0
 
 
-## The king hides behind his walls: he can only be hit once his gate or a tower has fallen.
-func king_exposed(team: int) -> bool:
-	var gate_up := false
-	var towers := 0
+func gate(team: int) -> BUnit:
 	for u: BUnit in units:
 		if u.team == team and u.kind == "gate":
-			gate_up = true
-		if u.team == team and u.kind == "tower":
-			towers += 1
-	return not gate_up or towers < 2
+			return u
+	return null
 
 
+## The king can never be hurt: you win by the game mode instead (mate, crown...).
 func can_target(attacker_team: int, target: BUnit) -> bool:
-	if target.team == attacker_team:
-		return false
-	if target.kind == "king" and not king_exposed(target.team):
+	if target.team == attacker_team or target.kind == "king":
 		return false
 	return true
+
+
+## How many squares this hero may walk in one turn (the sky, rage, slow and a
+## heavy crown change it).
+func move_tiles(u: BUnit) -> int:
+	var m := int(u.data.get("moves", 3))
+	if u.team == favoured_team():
+		m += 1
+	if u.has_effect("rage", time):
+		m += 1
+	if u.has_effect("slow", time) or u.carry == "crown":
+		m -= 1
+	return maxi(1, m)
+
+
+## The squares a hero can still reach this turn: { Vector2i: steps }. Steps count
+## like a chess king (straight 1, diagonal 1.4).
+func reach_cells(u: BUnit) -> Dictionary:
+	var out := {}
+	if u == null or u.structure or u.speed <= 0.0:
+		return out
+	var limit := minf(u.budget, float(move_tiles(u))) + 0.05
+	var start := u.cell()
+	out[start] = 0.0
+	var open := [start]
+	while not open.is_empty():
+		# small maps: a simple scan for the cheapest open square is fast enough
+		var bi := 0
+		for i in open.size():
+			if out[open[i]] < out[open[bi]]:
+				bi = i
+		var c: Vector2i = open[bi]
+		open.remove_at(bi)
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
+			var n: Vector2i = c + d
+			if not _passable_for(u, n):
+				continue
+			if d.x != 0 and d.y != 0 and not u.flying and (not _passable_for(u, Vector2i(c.x + d.x, c.y)) or not _passable_for(u, Vector2i(c.x, c.y + d.y))):
+				continue
+			var cost: float = out[c] + (1.414 if d.x != 0 and d.y != 0 else 1.0)
+			if cost > limit or (out.has(n) and out[n] <= cost):
+				continue
+			out[n] = cost
+			open.append(n)
+	return out
+
+
+## Enemies this hero could hit this turn (walk + its reach).
+func attackable(u: BUnit) -> Array:
+	var cells := reach_cells(u)
+	var res := []
+	for e: BUnit in units:
+		if not can_target(u.team, e):
+			continue
+		if hidden_from(e, u.pos):
+			continue
+		for c in cells:
+			if Vector2(c).distance_to(e.pos) - e.radius <= u.range_ + 0.1:
+				res.append(e)
+				break
+	return res
 
 
 func is_visible(team: int, p: Vector2) -> bool:
@@ -211,6 +295,8 @@ func sky() -> String:
 
 ## Which kingdom the sky favours now (-1 = nobody).
 func favoured_team() -> int:
+	if no_sky:
+		return -1
 	match sky():
 		"day": return 0
 		"night": return 1
@@ -295,7 +381,7 @@ func play_card(team: int, idx: int, pos: Vector2 = Vector2.ZERO) -> bool:
 	var spawn: Vector2i = map["palaces"][team]["spawn"]
 	# a little spread so new heroes do not stand on each other (mirrored, so it stays fair)
 	var k: int = summons[team]
-	var off := Vector2([0.0, -0.5, 0.5, -0.25, 0.25][k % 5], 0.15 * (k % 3))
+	var off := Vector2([0.0, -0.4, 0.4, -0.2, 0.2][k % 5], 0.15 * (k % 3))
 	var u := _spawn_hero(team, id, Vector2(spawn) + off * (1 if team == 0 else -1))
 	u.from_card = id
 	c["unit"] = u.id
@@ -334,7 +420,7 @@ func cast_ability(unit_id: int, pos: Vector2) -> bool:
 	return true
 
 
-## Buy the next palace upgrade: towers hit harder, gate and towers get stronger.
+## Buy the next palace upgrade: the gate gets stronger and the king hits harder.
 func upgrade_palace(team: int) -> bool:
 	var cost := palace_upgrade_cost(team)
 	if cost < 0 or energy[team] < cost or is_over():
@@ -346,7 +432,7 @@ func upgrade_palace(team: int) -> bool:
 	var bonus: float = float(ups[palace_level[team] - 1]["bonus"])
 	var k := (1.0 + bonus) / (1.0 + old_bonus)
 	for u: BUnit in units:
-		if u.team == team and (u.kind == "gate" or u.kind == "tower"):
+		if u.team == team and (u.kind == "gate" or u.kind == "king"):
 			u.max_hp *= k
 			u.hp = minf(u.max_hp, u.hp * k + u.max_hp * 0.15)
 			u.dmg *= k
@@ -377,6 +463,9 @@ func _tick(dt: float) -> void:
 	var turn_index := int(time / TURN)
 	if turn_index != _sky_turn:
 		_sky_turn = turn_index
+		_turn_start(turn_index)
+		if is_over():
+			return
 		var now := sky_at(turn_index)
 		events.append({ "type": "sky", "sky": now, "turn": turn_index })
 		if now == "eclipse":
@@ -386,8 +475,10 @@ func _tick(dt: float) -> void:
 			events.append({ "type": "eclipse" })
 	# Units act one after another; whoever acts second reacts to the first one's
 	# move. Alternate the order every tick so neither kingdom always gets that edge.
+	# (a fair coin each tick: plain alternation repeated the same pattern every
+	# turn, because a turn has an even number of ticks)
 	var order := units.duplicate()
-	if _tick_n % 2 == 1:
+	if _order_rng.randi() % 2 == 1:
 		order.reverse()
 	for u: BUnit in order:
 		if u.hp <= 0.0:
@@ -407,22 +498,45 @@ func _tick(dt: float) -> void:
 	_separate()
 	_economy(dt)
 	_world_tick(dt)
+	_mode_tick(dt)
 	_fog_timer -= dt
 	if _fog_timer <= 0.0:
 		_fog_timer = 0.25
 		_update_fog(false)
 	if time >= time_limit and winner < 0:
-		var s := [_score(0), _score(1)]
+		var s := [_score(0) - _score_lost(1), _score(1) - _score_lost(0)]
 		winner = 2 if absf(s[0] - s[1]) < 0.01 else (0 if s[0] > s[1] else 1)
 		events.append({ "type": "game_over", "winner": winner, "reason": "time" })
 
 
+## Time is up: who got further in the game mode (and broke more of the enemy gate)?
 func _score(team: int) -> float:
-	var total := 0.0
-	for u: BUnit in units:
-		if u.team == team and (u.structure or u.kind == "king") and u.kind != "wall":
-			total += u.hp / u.max_hp
-	return total
+	return mode_progress(team) * 3.0
+
+
+func _score_lost(team: int) -> float:
+	var g := gate(team)
+	return 0.0 if g == null else g.hp / g.max_hp
+
+
+## How close this team is to winning the game mode, 0..1 (the HUD shows it).
+func mode_progress(team: int) -> float:
+	match mode:
+		"mate":
+			var zone := king_zone(1 - team)
+			return 0.0 if zone.is_empty() else float(mate_cells[1 - team].size()) / zone.size()
+		"crown":
+			for cr in crowns:
+				if cr["team"] != team and cr["carrier"] >= 0:
+					var home := Vector2(map["palaces"][team]["spawn"])
+					var start: float = Vector2(cr["home"]).distance_to(home)
+					return clampf(1.0 - Vector2(cr["pos"]).distance_to(home) / maxf(1.0, start), 0.1, 0.95)
+			return 0.0
+		"throne":
+			return throne_time[team] / THRONE_TIME
+		"runes":
+			return float(rune_count[team]) / RUNES_TO_WIN
+	return 0.0
 
 
 func _effects(u: BUnit, dt: float) -> void:
@@ -439,22 +553,8 @@ func _effects(u: BUnit, dt: float) -> void:
 			u.effects[sp["effect"]] = time + 0.4
 
 
-func _structure_think(u: BUnit) -> void:
-	if u.kind != "tower" or time < u.attack_ready_at:
-		return
-	var best: BUnit = null
-	var best_d := INF
-	for e: BUnit in units:
-		if e.team == u.team or e.structure or e.team == NEUTRAL or not can_target(u.team, e) or hidden_from(e, u.pos):
-			continue
-		var d := u.pos.distance_to(e.pos) - e.radius
-		if d <= u.range_ and d < best_d:
-			best = e
-			best_d = d
-	if best != null:
-		u.attack_ready_at = time + u.rate
-		events.append({ "type": "attack", "id": u.id, "target": best.id, "ranged": true })
-		_damage(best, u.dmg, u)
+func _structure_think(_u: BUnit) -> void:
+	pass   # gates and magic walls only stand in the way
 
 
 func _hero_think(u: BUnit, dt: float) -> void:
@@ -465,7 +565,12 @@ func _hero_think(u: BUnit, dt: float) -> void:
 		u.order = ""
 		u.target_id = -1
 	if u.kind == "king":
-		_fight_in_reach(u)
+		# the king fights back and steps away from danger inside his palace
+		if not _fight_in_reach(u) and u.order == "move":
+			if u.pos.distance_to(u.order_pos) < 0.1:
+				u.order = ""
+			else:
+				_walk_toward(u, u.order_pos, dt, null)
 		return
 	if u.team == NEUTRAL:
 		_monster_think(u, dt)
@@ -491,8 +596,16 @@ func _hero_think(u: BUnit, dt: float) -> void:
 			_idle_think(u, dt)
 
 
+## A hero sitting on the enemy throne stays there and only hits what is in reach.
+func _on_enemy_throne(u: BUnit) -> bool:
+	return mode == "throne" and u.team in [0, 1] and u.pos.distance_to(Vector2(map["palaces"][1 - u.team]["seat"])) <= 0.75
+
+
 ## No orders: miners mine, healers heal, everyone else fights enemies that come close.
 func _idle_think(u: BUnit, dt: float) -> void:
+	if _on_enemy_throne(u):
+		_fight_in_reach(u)
+		return
 	if _kite(u, dt):
 		return
 	if u.role() == "healer":
@@ -710,7 +823,7 @@ func _damage(t: BUnit, amount: float, by: BUnit, quiet: bool = false) -> void:
 	if not quiet or int(time * 4) != int((time - TICK) * 4):
 		events.append({ "type": "damage", "id": t.id, "amount": amount, "hp": t.hp })
 	# a hero that gets hit while idle fights back
-	if by != null and not t.structure and t.order == "" and t.target_id < 0 and t.role() != "healer" and t.kind != "king" and t.team != NEUTRAL and not by.structure:
+	if by != null and not t.structure and t.order == "" and t.target_id < 0 and not _on_enemy_throne(t) and t.role() != "healer" and t.kind != "king" and t.team != NEUTRAL and not by.structure:
 		if can_target(t.team, by):
 			t.target_id = by.id
 			t.order = "attack"
@@ -743,18 +856,8 @@ func _die(u: BUnit) -> void:
 		events.append({ "type": "monster_slain", "team": u.last_hit_team, "kind": u.kind, "pos": u.pos })
 	if u.kind == "gate" or u.kind == "wall":
 		_set_cell_open(u.cell(), true)
-	if u.kind == "tower":
-		# a fallen tower leaves a hole in the wall (the tower square and the wall next to it)
-		var c := u.cell()
-		var gate: Vector2i = map["palaces"][u.team]["gate"]
-		var inward := Vector2i(signi(gate.x - c.x), 0)
-		for cell in [c, c + inward]:
-			map["terrain"][cell.y * w + cell.x] = Chess.Terrain.CASTLE
-			_set_cell_open(cell, true)
-		events.append({ "type": "breach", "team": u.team, "cells": [c, c + inward] })
-	if u.kind == "king":
-		winner = 1 - u.team
-		events.append({ "type": "game_over", "winner": winner, "reason": "king" })
+	if u.carry != "":
+		events.append({ "type": "drop", "what": u.carry, "pos": u.pos, "team": u.team })
 
 
 func respawn_time(_card_id: String) -> float:
@@ -980,12 +1083,14 @@ func _speed(u: BUnit) -> float:
 		s *= float(world.get("special", {}).get("speed", 1.0))
 	if u.team == favoured_team():
 		s *= SKY_BONUS_SPEED
+	if u.carry == "crown":
+		s *= 0.7
 	return s
 
 
 func _walk_toward(u: BUnit, goal: Vector2, dt: float, chasing: BUnit) -> void:
 	var sp := _speed(u)
-	if sp <= 0.0:
+	if sp <= 0.0 or (u.team != NEUTRAL and u.budget <= 0.0):
 		return
 	if u.flying:
 		_step_to(u, goal, sp * dt)
@@ -995,23 +1100,28 @@ func _walk_toward(u: BUnit, goal: Vector2, dt: float, chasing: BUnit) -> void:
 		var grid: AStarGrid2D = _grids[u.team]
 		var from := _clamp_cell(u.cell())
 		var to := _clamp_cell(Vector2i(roundi(goal.x), roundi(goal.y)))
-		var ids := grid.get_id_path(from, to, true)
+		var ids := grid.get_id_path(_gm(u.team, from), _gm(u.team, to), true)
 		u.path = []
 		for i in range(1, ids.size()):
-			u.path.append(Vector2(ids[i]))
-		if not u.path.is_empty() and chasing == null and to == Vector2i(ids[ids.size() - 1]):
+			u.path.append(Vector2(_gm(u.team, ids[i])))
+		if not u.path.is_empty() and chasing == null and to == _gm(u.team, ids[ids.size() - 1]):
 			u.path[u.path.size() - 1] = goal
 		if u.path.is_empty():
-			u.path = [goal] if grid.is_in_boundsv(to) and not grid.is_point_solid(to) else []
+			u.path = [goal] if _passable_for_team(u.team, to) else []
+		# a hero rarely stands in the exact middle of its square: skip a first step
+		# that would lead backwards (otherwise the rounding favours one kingdom)
+		while u.path.size() >= 2 and u.pos.distance_to(u.path[1]) <= Vector2(u.path[0]).distance_to(u.path[1]) + 0.01:
+			u.path.pop_front()
 	if u.path.is_empty():
 		return
-	var left := sp * dt
+	var left := sp * dt if u.team == NEUTRAL else minf(sp * dt, u.budget)
 	while left > 0.0 and not u.path.is_empty():
 		var nxt: Vector2 = u.path[0]
 		var d := u.pos.distance_to(nxt)
 		if d <= left:
 			u.pos = nxt
 			u.walked += d
+			u.budget -= d
 			u.still_since = time
 			left -= d
 			u.path.pop_front()
@@ -1026,14 +1136,20 @@ func _step_to(u: BUnit, goal: Vector2, dist: float) -> void:
 		return
 	u.facing = v.normalized()
 	var step := minf(dist, v.length())
+	if u.team != NEUTRAL:
+		step = minf(step, maxf(0.0, u.budget))
 	u.pos += v.normalized() * step
 	u.walked += step
+	u.budget -= step
 	u.still_since = time
 
 
-## Heroes of one team push gently apart so a group does not melt into one spot.
+## Heroes push gently apart so a group does not melt into one spot. All pushes
+## are worked out first and applied together, so the order of the units does not
+## matter (pushing one pair after another favoured whichever kingdom came first).
 func _separate() -> void:
-	var movers := units.filter(func(u): return not u.structure and u.speed > 0.0)
+	var movers := units.filter(func(u): return not u.structure and u.speed > 0.0 and u.kind != "king")
+	var delta := {}
 	for i in movers.size():
 		for j in range(i + 1, movers.size()):
 			var a: BUnit = movers[i]
@@ -1042,13 +1158,13 @@ func _separate() -> void:
 			var d := v.length()
 			var min_d := (a.radius + b.radius) * 1.1
 			if d < min_d:
-				var push := (v.normalized() if d > 0.001 else Vector2(1, 0)) * (min_d - d) * 0.5
-				var na: Vector2 = a.pos - push
-				var nb: Vector2 = b.pos + push
-				if _passable_for(a, Vector2i(roundi(na.x), roundi(na.y))):
-					a.pos = na
-				if _passable_for(b, Vector2i(roundi(nb.x), roundi(nb.y))):
-					b.pos = nb
+				var push := (v.normalized() if d > 0.001 else Vector2(1, 0) * (1 if a.team == 0 else -1)) * (min_d - d) * 0.5
+				delta[a] = delta.get(a, Vector2.ZERO) - push
+				delta[b] = delta.get(b, Vector2.ZERO) + push
+	for u: BUnit in delta:
+		var np: Vector2 = u.pos + delta[u]
+		if _passable_for(u, Vector2i(roundi(np.x), roundi(np.y))):
+			u.pos = np
 
 
 func _clamp_cell(c: Vector2i) -> Vector2i:
@@ -1067,7 +1183,15 @@ func _passable_for(u: BUnit, c: Vector2i) -> bool:
 
 func _passable_for_team(team: int, c: Vector2i) -> bool:
 	var g: AStarGrid2D = _grids[team]
+	c = _gm(team, c)
 	return g.is_in_boundsv(c) and not g.is_point_solid(c)
+
+
+## The Void's path grid is stored turned 180 degrees, so both kingdoms find
+## exactly mirrored paths (A* breaks ties the same way in its own coordinates;
+## without this one kingdom always picked the better of two equal roads).
+func _gm(team: int, c: Vector2i) -> Vector2i:
+	return Vector2i(w - 1 - c.x, h - 1 - c.y) if team == 1 else c
 
 
 func _build_grids() -> void:
@@ -1082,23 +1206,20 @@ func _build_grids() -> void:
 			for x in w:
 				var t: int = map["terrain"][y * w + x]
 				if t == Chess.Terrain.WALL or t == Chess.Terrain.WATER:
-					g.set_point_solid(Vector2i(x, y), true)
-				elif t == Chess.Terrain.FOREST:
-					g.set_point_weight_scale(Vector2i(x, y), 1.6)
-		# the king's floor: only the king lives there, but friends may walk in to defend
+					g.set_point_solid(_gm(team, Vector2i(x, y)), true)
 		_grids[team] = g
 
 
 func _set_cell_open(c: Vector2i, _open: bool) -> void:
 	for team in 3:
 		var t := terrain_at(c)
-		_grids[team].set_point_solid(c, t == Chess.Terrain.WALL or t == Chess.Terrain.WATER)
+		_grids[team].set_point_solid(_gm(team, c), t == Chess.Terrain.WALL or t == Chess.Terrain.WATER)
 
 
 func _set_cell_blocked_for_enemies(team: int, c: Vector2i) -> void:
 	for other in 3:
 		if other != team:
-			_grids[other].set_point_solid(c, true)
+			_grids[other].set_point_solid(_gm(other, c), true)
 
 
 # ------------------------------------------------------------------ spawning
@@ -1131,6 +1252,7 @@ func _spawn_hero(team: int, id: String, pos: Vector2) -> BUnit:
 	u.speed = float(d.get("speed", 1.5))
 	u.flying = bool(d.get("flying", false))
 	u.radius = 0.45 if id in ["giant", "dragon", "ballista"] else 0.3
+	u.budget = move_tiles(u) + 0.75
 	events.append({ "type": "spawn", "id": u.id })
 	return u
 
@@ -1147,16 +1269,6 @@ func _spawn_palaces() -> void:
 		gate.speed = 0.0
 		gate.dmg = 0.0
 		_set_cell_blocked_for_enemies(team, p["gate"])
-		for tc in p["towers"]:
-			var t := _new_unit(team, "tower", Vector2(tc))
-			t.structure = true
-			t.radius = 0.5
-			t.max_hp = float(cfg["tower"]["hp"])
-			t.hp = t.max_hp
-			t.dmg = float(cfg["tower"]["dmg"])
-			t.rate = float(cfg["tower"]["rate"])
-			t.range_ = float(cfg["tower"]["range"])
-			t.speed = 0.0
 		_spawn_hero(team, "king", Vector2(p["king"]))
 
 
@@ -1180,3 +1292,186 @@ func _update_fog(_first: bool) -> void:
 						vis[y * w + x] = 1
 						explored[team][y * w + x] = 1
 		_visible[team] = vis
+
+
+# ------------------------------------------------------------------ game modes
+
+func _setup_mode() -> void:
+	match mode:
+		"crown":
+			for team in 2:
+				var seat: Vector2i = map["palaces"][team]["seat"]
+				crowns.append({ "team": team, "pos": Vector2(seat), "home": Vector2(seat), "carrier": -1 })
+		"runes":
+			for c in map.get("runes", []):
+				runes.append({ "id": runes.size(), "pos": Vector2(c), "home": Vector2(c), "carrier": -1, "back_at": 0.0 })
+
+
+## A new turn: every hero gets its squares back, checkmate is judged, and the
+## king steps to the safest square around him.
+func _turn_start(turn_index: int) -> void:
+	for u: BUnit in units:
+		if not u.structure:
+			# a little extra so a hero that stands a bit off the middle of its square still arrives
+			u.budget = move_tiles(u) + 0.75
+	if mode != "mate":
+		return
+	_update_mate()
+	if turn_index > 0:
+		var mated := [false, false]
+		for team in 2:
+			var zone := king_zone(team)
+			mated[team] = not zone.is_empty() and mate_cells[team].size() >= zone.size()
+		if mated[0] or mated[1]:
+			winner = 2 if mated[0] and mated[1] else (1 if mated[0] else 0)
+			events.append({ "type": "game_over", "winner": winner, "reason": "mate" })
+			return
+	for team in 2:
+		var k := king(team)
+		if k == null:
+			continue
+		var best := k.cell()
+		var best_n := _threats_on(team, best) * 10 + 1
+		for c in king_zone(team):
+			var n: int = _threats_on(team, c) * 10 + (0 if c == k.cell() else 1)
+			if n < best_n:
+				best_n = n
+				best = c
+		if best != k.cell():
+			k.order = "move"
+			k.order_pos = Vector2(best)
+			k.path = []
+
+
+## The king's square and the free palace squares around it (the squares he could flee to).
+func king_zone(team: int) -> Array:
+	var k := king(team)
+	if k == null:
+		return []
+	var fl: Rect2i = map["palaces"][team]["floor"]
+	var res := []
+	var flip := 1 if team == 0 else -1     # mirrored order, so both kings choose alike
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var c := k.cell() + Vector2i(dx, dy) * flip
+			if fl.has_point(c) and terrain_at(c) != Chess.Terrain.WALL:
+				res.append(c)
+	return res
+
+
+## Only heroes INSIDE the palace (through the broken gate) threaten the king.
+func in_palace(team: int, c: Vector2i) -> bool:
+	var fl: Rect2i = map["palaces"][team]["floor"]
+	return fl.grow(1).has_point(c)
+
+
+func _threats_on(king_team: int, c: Vector2i) -> int:
+	var n := 0
+	for e: BUnit in units:
+		if e.team == king_team or e.team == NEUTRAL or e.structure or e.kind == "king" or e.role() in ["miner", "healer"]:
+			continue
+		if not in_palace(king_team, e.cell()):
+			continue
+		if e.pos.distance_to(Vector2(c)) <= clampf(e.range_, 1.5, 3.0) + 0.2:
+			n += 1
+	return n
+
+
+func _update_mate() -> void:
+	for team in 2:
+		var cells := []
+		for c in king_zone(team):
+			if _threats_on(team, c) > 0:
+				cells.append(c)
+		mate_cells[team] = cells
+		var k := king(team)
+		var chk := k != null and cells.has(k.cell())
+		if chk and not in_check[team]:
+			events.append({ "type": "check", "team": team })
+		in_check[team] = chk
+
+
+func _win(team: int, reason: String) -> void:
+	if winner >= 0:
+		return
+	winner = team
+	events.append({ "type": "game_over", "winner": team, "reason": reason })
+
+
+func _mode_tick(dt: float) -> void:
+	match mode:
+		"mate":
+			_update_mate()
+		"crown":
+			for cr in crowns:
+				var carrier := unit(cr["carrier"])
+				if cr["carrier"] >= 0 and carrier == null:
+					cr["carrier"] = -1        # the carrier fell: the crown lies where it fell
+				if carrier != null:
+					cr["pos"] = carrier.pos
+					# home: at the own gate or inside the own palace
+					var own: Dictionary = map["palaces"][carrier.team]
+					if carrier.pos.distance_to(Vector2(own["spawn"])) <= 1.2 or (own["floor"] as Rect2i).grow(1).has_point(carrier.cell()):
+						_win(carrier.team, "crown")
+						return
+					continue
+				for u: BUnit in units:
+					if u.team == NEUTRAL or u.structure or u.kind == "king" or u.carry != "" or u.pos.distance_to(cr["pos"]) > 0.6:
+						continue
+					if u.team != cr["team"]:
+						cr["carrier"] = u.id
+						u.carry = "crown"
+						events.append({ "type": "crown_taken", "team": u.team, "id": u.id, "pos": u.pos })
+						break
+					elif Vector2(cr["pos"]) != Vector2(cr["home"]):
+						cr["pos"] = cr["home"]
+						events.append({ "type": "crown_back", "team": u.team, "pos": u.pos })
+						break
+		"throne":
+			for team in 2:
+				var seat := Vector2(map["palaces"][1 - team]["seat"])
+				var sitters := false
+				var guards := false
+				for u: BUnit in units:
+					if u.structure or u.team == NEUTRAL or u.pos.distance_to(seat) > 0.75:
+						continue
+					if u.team == team and u.kind != "king":
+						sitters = true
+					elif u.team != team:
+						guards = true
+				if sitters and not guards:
+					var before := int(throne_time[team] / TURN)
+					throne_time[team] += dt
+					if int(throne_time[team] / TURN) != before:
+						events.append({ "type": "throne", "team": team, "turns": int(throne_time[team] / TURN) })
+					if throne_time[team] >= THRONE_TIME:
+						_win(team, "throne")
+						return
+		"runes":
+			for r in runes:
+				var carrier := unit(r["carrier"])
+				if r["carrier"] >= 0 and carrier == null:
+					r["carrier"] = -1
+				if carrier != null:
+					r["pos"] = carrier.pos
+					var k := king(carrier.team)
+					if k != null and carrier.pos.distance_to(k.pos) <= 1.8:
+						carrier.carry = ""
+						r["carrier"] = -1
+						r["pos"] = r["home"]
+						r["back_at"] = time + RUNE_BACK
+						rune_count[carrier.team] += 1
+						events.append({ "type": "rune_home", "team": carrier.team, "count": rune_count[carrier.team], "pos": carrier.pos })
+						if rune_count[carrier.team] >= RUNES_TO_WIN:
+							_win(carrier.team, "runes")
+							return
+					continue
+				if time < r["back_at"]:
+					continue
+				for u: BUnit in units:
+					if u.team == NEUTRAL or u.structure or u.kind == "king" or u.carry != "" or u.pos.distance_to(r["pos"]) > 0.6:
+						continue
+					r["carrier"] = u.id
+					u.carry = "rune"
+					events.append({ "type": "rune_taken", "team": u.team, "id": u.id, "pos": u.pos })
+					break

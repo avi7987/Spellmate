@@ -40,11 +40,11 @@ func test_maps_are_fair_and_have_palaces() -> void:
 		check_eq(m["fog"], size == "large", size + " fog")
 
 
-func test_battle_starts_with_kings_gates_towers_and_army() -> void:
+func test_battle_starts_with_kings_gates_and_army() -> void:
 	var b := Battle.create("small", [DECK, DECK])
 	for team in 2:
 		check(b.king(team) != null, "king %d" % team)
-		check_eq(b.units.filter(func(u): return u.team == team and u.kind == "tower").size(), 2, "towers")
+		check_eq(b.units.filter(func(u): return u.team == team and u.kind == "tower").size(), 0, "no towers any more")
 		check_eq(b.units.filter(func(u): return u.team == team and u.kind == "gate").size(), 1, "gate")
 		check_eq(b.heroes_of(team).size(), 4, "starting army")
 	check_eq(b.winner, -1, "ongoing")
@@ -109,44 +109,105 @@ func test_move_order_walks_around_water_over_bridge() -> void:
 	check_eq(u.order, "", "order done")
 
 
-func test_gate_blocks_enemies_and_king_is_safe_behind_walls() -> void:
+func test_gate_blocks_enemies_and_king_can_never_be_hurt() -> void:
 	var b := _empty()
 	var gate: Vector2i = b.map["palaces"][1]["gate"]
 	check(not b._passable_for_team(0, gate), "enemy gate blocks the Sun")
 	check(b._passable_for_team(1, gate), "own gate lets the Void through")
-	check(not b.king_exposed(1), "king protected")
-	check(not b.can_target(0, b.king(1)), "cannot target protected king")
-	var g: BUnit = b.units.filter(func(u): return u.team == 1 and u.kind == "gate")[0]
-	b._damage(g, 999999, null)
-	check(b.king_exposed(1), "gate down: king exposed")
+	check(not b.can_target(0, b.king(1)), "the king is never a target")
+	b._damage(b.gate(1), 999999, null)
 	check(b._passable_for_team(0, gate), "broken gate is open")
+	check(not b.can_target(0, b.king(1)), "still not a target")
 
 
-func test_tower_falls_and_leaves_a_breach() -> void:
+func test_heroes_walk_only_their_squares_each_turn() -> void:
 	var b := _empty()
-	var t: BUnit = b.units.filter(func(u): return u.team == 1 and u.kind == "tower")[0]
-	var c := t.cell()
-	b._damage(t, 999999, null)
-	check_eq(b.terrain_at(c), Chess.Terrain.CASTLE, "tower square is open")
-	check(b._passable_for_team(0, c), "breach walkable")
-	check(b.king_exposed(1), "king exposed after a tower falls")
+	var u := b._spawn_hero(0, "soldier", Vector2(2, 7))
+	var cells := b.reach_cells(u)
+	check(cells.has(Vector2i(5, 7)), "3 squares away is reachable")
+	check(not cells.has(Vector2i(6, 7)), "4 squares away is not")
+	b.order_move([u.id], Vector2(10, 7))
+	_run(b, 4.9)
+	check(u.pos.distance_to(Vector2(2, 7)) <= 3.0 + 0.8, "walked at most its squares: %s" % u.pos)
+	_run(b, 5.0)
+	check(u.pos.x > 5.5, "walks on in the next turn: %s" % u.pos)
 
 
-func test_towers_shoot_nearby_enemies() -> void:
+func test_mate_needs_the_king_and_his_squares_threatened() -> void:
 	var b := _empty()
-	var t: BUnit = b.units.filter(func(u): return u.team == 0 and u.kind == "tower")[0]
-	var e := b._spawn_hero(1, "shield", t.pos + Vector2(0, 2))
-	e.speed = 0.0
-	_run(b, 2.5)
-	check(e.hp < e.max_hp, "tower shot the enemy")
+	b._damage(b.gate(1), 1e9, null)
+	var k := b.king(1)
+	var zone := b.king_zone(1)
+	check(zone.size() >= 4, "the king has squares to flee to")
+	var a := b._spawn_hero(0, "soldier", k.pos + Vector2(0, 1))
+	b._update_mate()
+	check(b.in_check[1], "check")
+	check(b.mate_cells[1].size() < b.king_zone(1).size(), "one soldier is not a mate")
+	# surround him from every side
+	for d in [Vector2(-1.5, 0), Vector2(1.5, 0), Vector2(-1.5, -1), Vector2(1.5, -1), Vector2(0, -1.5)]:
+		var s := b._spawn_hero(0, "soldier", k.pos + d)
+		s.speed = 0.0
+	a.speed = 0.0
+	for e: BUnit in b.units:
+		if e.team == 0:
+			e.hp = 1e6
+			e.max_hp = 1e6
+	k.speed = 0.0
+	_run(b, 5.2)
+	check_eq(b.winner, 0, "checkmate: the Sun wins")
 
 
-func test_killing_the_king_wins() -> void:
-	var b := _empty()
-	b._damage(b.units.filter(func(u): return u.team == 1 and u.kind == "gate")[0], 1e9, null)
-	b._damage(b.king(1), 1e9, b.king(0))
-	check_eq(b.winner, 0, "Sun wins")
-	check(b.is_over(), "over")
+func test_steal_the_crown_and_bring_it_home() -> void:
+	var b := Battle.create("small", [DECK, DECK], [{}, {}], 7, "meadow", "crown")
+	var seat := Vector2(b.map["palaces"][1]["seat"])
+	var t := b._spawn_hero(0, "assassin", seat)
+	b.step(0.1)
+	check_eq(t.carry, "crown", "the assassin took the crown")
+	t.pos = Vector2(b.map["palaces"][0]["spawn"])
+	b.step(0.1)
+	check_eq(b.winner, 0, "crown brought home")
+
+
+func test_dropped_crown_goes_back_when_its_owner_touches_it() -> void:
+	var b := Battle.create("small", [DECK, DECK], [{}, {}], 7, "meadow", "crown")
+	var cr: Dictionary = b.crowns[1]
+	var t := b._spawn_hero(0, "assassin", Vector2(cr["home"]))
+	b.step(0.1)
+	t.pos = Vector2(7, 12)
+	b.step(0.1)
+	b._damage(t, 1e9, null)
+	b.step(0.1)
+	check_eq(cr["carrier"], -1, "dropped")
+	check(Vector2(cr["pos"]).distance_to(Vector2(7, 12)) < 0.5, "lies where the thief fell")
+	b._spawn_hero(1, "soldier", Vector2(cr["pos"]))
+	b.step(0.1)
+	check(Vector2(cr["pos"]) == Vector2(cr["home"]), "back on the throne")
+
+
+func test_throne_three_turns_wins() -> void:
+	var b := Battle.create("small", [DECK, DECK], [{}, {}], 7, "meadow", "throne")
+	var u := b._spawn_hero(0, "shield", Vector2(b.map["palaces"][1]["seat"]))
+	u.hp = 1e7
+	u.max_hp = 1e7
+	_run(b, 10)
+	check(b.winner < 0 and b.throne_time[0] > 9.0, "sitting: %s" % b.throne_time[0])
+	_run(b, 6)
+	check_eq(b.winner, 0, "three turns on the throne")
+
+
+func test_runes_brought_to_the_king() -> void:
+	var b := Battle.create("small", [DECK, DECK], [{}, {}], 7, "meadow", "runes")
+	check_eq(b.runes.size(), 4, "four runes on the map")
+	var k := b.king(0)
+	for i in 3:
+		var r: Dictionary = b.runes[i]
+		var u := b._spawn_hero(0, "soldier", Vector2(r["pos"]))
+		b.step(0.1)
+		check_eq(u.carry, "rune", "picked up")
+		u.pos = k.pos + Vector2(0, 1)
+		b.step(0.1)
+	check_eq(b.rune_count[0], 3, "three runes home")
+	check_eq(b.winner, 0, "the final spell!")
 
 
 func test_ice_bomb_freezes_and_fire_bomb_burns() -> void:
@@ -208,10 +269,10 @@ func test_shield_wall_blocks_enemies() -> void:
 func test_palace_upgrade() -> void:
 	var b := _empty()
 	b.energy[0] = 20
-	var t: BUnit = b.units.filter(func(u): return u.team == 0 and u.kind == "tower")[0]
-	var dmg := t.dmg
+	var g := b.gate(0)
+	var hp := g.max_hp
 	check(b.upgrade_palace(0), "upgrade 1")
-	check(t.dmg > dmg, "towers hit harder")
+	check(g.max_hp > hp, "stronger gate")
 	check(b.upgrade_palace(0), "upgrade 2")
 	check(not b.upgrade_palace(0), "no more upgrades")
 

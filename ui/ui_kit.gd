@@ -1,11 +1,12 @@
 class_name UiKit
 extends RefCounted
-## The game's look for every screen: a bright mobile-game style with a KNIGHTLY
-## touch (owner's choice: "cool and knightly, but not old").
+## The game's look for every screen: ROYAL GOLD (owner's choice, concept 1 of 10):
+## deep-red velvet boards with a gold rim and a little crown, titles in gold
+## leaf (a gold gradient with a shine) with a dark-brown outline, gold buttons.
 ##   - titles and buttons: Noto Serif Hebrew Black (a strong modern serif, like an
 ##     epic movie title); text: Secular One (clean, bold). Always white or gold
 ##     with a thick dark outline and a soft shadow, so it reads on any background
-##   - panels: rounded deep-blue boards with a dark rim and a glossy top
+##   - panels: rounded red-velvet boards with a gold rim, a gold inner line and a crown
 ##   - buttons: chunky coloured "3D" buttons that press down
 ##   - all text is right-to-left (Hebrew): labels, buttons and drawn text
 ## Use these helpers for all UI so everything shares one style.
@@ -16,20 +17,21 @@ const FONT_SYMBOLS := preload("res://assets/fonts/NotoSansSymbols2-Regular.ttf")
 const FONT_EMOJI := preload("res://assets/fonts/NotoEmoji.ttf")
 
 const TEXT := Color(1.0, 1.0, 1.0)
-const TEXT_SOFT := Color(0.80, 0.86, 0.98)
+const TEXT_SOFT := Color(1.0, 0.90, 0.76)
 const GOLD := Color(1.0, 0.84, 0.30)
 const GOLD_DARK := Color(0.85, 0.55, 0.10)
 const ACCENT := Color(1.0, 0.50, 0.38)          # warnings, highlights
 const GOOD := Color(0.55, 1.0, 0.45)
-const OUTLINE := Color(0.05, 0.04, 0.10)
-const PANEL_BG := Color(0.14, 0.19, 0.38)
-const PANEL_DARK := Color(0.09, 0.12, 0.26)
-const PANEL_EDGE := Color(0.03, 0.04, 0.10)
+const OUTLINE := Color(0.18, 0.05, 0.02)
+const PANEL_BG := Color(0.40, 0.05, 0.08)       # red velvet
+const PANEL_DARK := Color(0.24, 0.03, 0.05)
+const PANEL_EDGE := Color(0.12, 0.02, 0.02)
+const GOLD_RIM := Color(0.93, 0.73, 0.27)        # the gold frame of every board
 
 ## Button colours
-const BUTTON_RED := Color(0.92, 0.30, 0.20)      # the main action
-const BUTTON_BRONZE := Color(0.98, 0.62, 0.15)   # orange: normal actions
-const BUTTON_STEEL := Color(0.30, 0.52, 0.92)    # blue: quiet actions
+const BUTTON_RED := Color(0.80, 0.14, 0.15)      # crimson: the main action
+const BUTTON_BRONZE := Color(0.90, 0.66, 0.16)   # gold: normal actions
+const BUTTON_STEEL := Color(0.22, 0.34, 0.66)    # royal blue: quiet actions
 const BUTTON_PURPLE := Color(0.62, 0.34, 0.92)   # magic
 const BUTTON_GREEN := Color(0.30, 0.78, 0.30)
 const BUTTON_GREY := Color(0.45, 0.47, 0.55)
@@ -110,7 +112,7 @@ static func make_theme() -> Theme:
 static func panel_style(bg: Color = PANEL_BG, border: int = 4, radius: int = 20) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
-	sb.border_color = PANEL_EDGE
+	sb.border_color = GOLD_RIM
 	sb.set_border_width_all(border)
 	sb.set_corner_radius_all(radius)
 	sb.set_content_margin_all(22)
@@ -174,12 +176,51 @@ static func label(text: String, size: int = 20, color: Color = TEXT, weight: int
 	return l
 
 
-## A big title: gold, very thick outline and shadow.
+## A big title: GOLD LEAF (a gold gradient with a shine), very thick outline and shadow.
 static func title(text: String, size: int = 30, color: Color = GOLD) -> Label:
 	var l := label(text, size, color, 700)
 	l.add_theme_constant_override("outline_size", clampi(size / 3, 8, 20))
 	l.add_theme_constant_override("shadow_offset_y", maxi(3, size / 9))
+	if color == GOLD:
+		gild(l, size)
 	return l
+
+
+const _GOLD_SHADER := """
+shader_type canvas_item;
+uniform vec4 c_top : source_color = vec4(1.0, 0.97, 0.75, 1.0);
+uniform vec4 c_mid : source_color = vec4(1.0, 0.78, 0.2, 1.0);
+uniform vec4 c_bot : source_color = vec4(0.62, 0.36, 0.05, 1.0);
+uniform float y0 = 0.0;
+uniform float y1 = 40.0;
+varying vec2 lp;
+void vertex() { lp = VERTEX; }
+void fragment() {
+	vec4 c = COLOR;
+	// only the letters themselves (pure white), not the outline or the shadow
+	if (c.r > 0.96 && c.g > 0.96 && c.b > 0.96) {
+		float t = clamp((lp.y - y0) / (y1 - y0), 0.0, 1.0);
+		vec3 g = t < 0.5 ? mix(c_top.rgb, c_mid.rgb, t * 2.0) : mix(c_mid.rgb, c_bot.rgb, t * 2.0 - 1.0);
+		g += vec3(smoothstep(0.07, 0.0, abs(t - 0.42)) * 0.25);
+		COLOR = vec4(g, c.a);
+	}
+}
+"""
+static var _gold_shader: Shader
+
+
+## Turns a label's letters into gold leaf. Its font colour becomes white (the
+## shader paints the gold); the label should be about one line high.
+static func gild(l: Label, size: int) -> void:
+	if _gold_shader == null:
+		_gold_shader = Shader.new()
+		_gold_shader.code = _GOLD_SHADER
+	var m := ShaderMaterial.new()
+	m.shader = _gold_shader
+	m.set_shader_parameter("y0", size * 0.3)
+	m.set_shader_parameter("y1", size * 1.25)
+	l.material = m
+	l.add_theme_color_override("font_color", Color.WHITE)
 
 
 ## Kept for older callers: a paragraph (wraps to `width`).
@@ -211,9 +252,19 @@ static func seal_button(text: String, diameter: float = 128.0, size: int = 30) -
 	var b := button(text, BUTTON_RED, size)
 	b.seal = true
 	b.custom_minimum_size = Vector2(diameter, diameter)
-	b.add_theme_color_override("font_color", GOLD)
-	b.add_theme_color_override("font_hover_color", Color(1, 0.95, 0.7))
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(k, Color.WHITE)
 	b.add_theme_constant_override("outline_size", 10)
+	# gold-leaf letters (see gild)
+	if _gold_shader == null:
+		_gold_shader = Shader.new()
+		_gold_shader.code = _GOLD_SHADER
+	var m := ShaderMaterial.new()
+	m.shader = _gold_shader
+	var mid := (diameter - GameButton.DEPTH) / 2.0
+	m.set_shader_parameter("y0", mid - size * 0.55)
+	m.set_shader_parameter("y1", mid + size * 0.5)
+	b.material = m
 	return b
 
 

@@ -24,13 +24,14 @@ func _run(b: Battle, seconds: float) -> void:
 
 func test_sky_cycle_and_eclipse() -> void:
 	check_eq(Battle.sky_of_turn(0), "day", "turn 1 day")
-	check_eq(Battle.sky_of_turn(2), "night", "turn 3 night")
-	check_eq(Battle.sky_of_turn(4), "eclipse", "turn 5 eclipse")
-	check_eq(Battle.sky_of_turn(5), "day", "cycle repeats")
+	check_eq(Battle.sky_of_turn(2), "eclipse", "turn 3 eclipse")
+	check_eq(Battle.sky_of_turn(3), "night", "turn 4 night")
+	check_eq(Battle.sky_of_turn(5), "eclipse", "an eclipse after the nights too (fair)")
+	check_eq(Battle.sky_of_turn(6), "day", "cycle repeats")
 	var b := _empty()
 	var q := b._spawn_hero(0, "queen", Vector2(7, 7))
 	q.ability_ready_at = 999.0
-	_run(b, Battle.TURN * 4 + 0.2)
+	_run(b, Battle.TURN * 2 + 0.2)
 	check_eq(b.sky(), "eclipse", "eclipse now")
 	check(q.ability_ready_at <= b.time, "eclipse recharged the power")
 
@@ -62,7 +63,7 @@ func test_knight_momentum() -> void:
 	var b := _empty()
 	var k := b._spawn_hero(0, "knight", Vector2(7, 7))
 	var e := b._spawn_hero(1, "shield", Vector2(7, 8))
-	b.time = Battle.TURN * 4 + 0.1   # eclipse: no sky bonus
+	b.time = Battle.TURN * 2 + 0.1   # eclipse: no sky bonus
 	k.walked = 0.0
 	b._hit(k, e)
 	var plain := e.max_hp - e.hp
