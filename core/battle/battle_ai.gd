@@ -6,6 +6,8 @@ extends RefCounted
 
 var team := 1
 var level := 2
+## The rival king's style: swarm / magic / fortress / siege / all (see data/meta.json arenas).
+var style := "all"
 var _next_think := 0.0
 var _attacking := false
 var _rng := RandomNumberGenerator.new()
@@ -38,13 +40,14 @@ func think(b: Battle) -> void:
 func plan_turn(b: Battle) -> void:
 	if b.is_over():
 		return
-	for i in (1 if level <= 0 else 3):
+	for i in (1 if level <= 0 else (4 if style == "swarm" else 3)):
 		_summon(b)
 	if level > 0:
 		_spells(b)
 		_powers(b)
 	_army(b)
-	if level > 0 and b.energy[team] >= 16.0 and b.palace_upgrade_cost(team) > 0:
+	var upgrade_at := 10.0 if style == "fortress" else 16.0
+	if level > 0 and b.energy[team] >= upgrade_at and b.palace_upgrade_cost(team) > 0:
 		b.upgrade_palace(team)
 
 
@@ -58,6 +61,10 @@ func _summon(b: Battle) -> void:
 		if b.energy[team] < b.card_cost(id):
 			continue
 		var want := b.card_cost(id) + _rng.randf() * 3.0
+		if style == "swarm":
+			want = 10.0 - b.card_cost(id) + _rng.randf() * 2.0
+		elif style == "siege" and BattleData.hero(id).get("siege", 1.0) > 1.0:
+			want += 6.0
 		if BattleData.hero(id).get("role", "") == "miner":
 			want = 20.0 if miners < 3 else -1.0
 		options.append([want, i])
@@ -91,7 +98,7 @@ func _enemy_clusters(b: Battle) -> Array:
 
 
 func _spells(b: Battle) -> void:
-	if level == 1 and _rng.randf() < 0.5:
+	if level == 1 and _rng.randf() < 0.5 and style != "magic":
 		return
 	var cluster := _enemy_clusters(b)
 	var my_king := b.king(team)
@@ -195,6 +202,10 @@ func _army(b: Battle) -> void:
 	for u: BUnit in army:
 		power += b.card_cost(u.kind)
 	var need: float = [7.0, 6.0, 5.0][clampi(level - 1, 0, 2)]
+	match style:
+		"swarm": need *= 0.7
+		"fortress": need *= 1.6
+		"siege": need *= 1.1
 	if level <= 0:
 		need = 999.0   # tutorial: the computer only defends
 	if power >= need:

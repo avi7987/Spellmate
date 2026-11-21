@@ -210,6 +210,14 @@
 			"range": 3.0,
 			"speed": 1.0,
 			"splash": 1.2
+		},
+		"ghost_knight": {
+			"name": "אביר רפאים",
+			"hp": 1150,
+			"dmg": 70,
+			"rate": 1.1,
+			"range": 1.4,
+			"speed": 1.4
 		}
 	},
 	"shrines": {
@@ -240,5 +248,27 @@
 	"monster_reward": {
 		"energy": 6,
 		"gold": 25
+	},
+	"ghost": {
+		"name": "טירת הרוחות",
+		"desc": "עולם רדוף! ערפל רפאים מגן על מי שעומד בתוכו: הוא מקבל רק חצי נזק.",
+		"special": {
+			"name": "ערפל רפאים",
+			"speed": 0.9,
+			"effect": "shield"
+		},
+		"colors": {
+			"plain": "#3a4448",
+			"forest": "#2c3538",
+			"hill": "#4d5458",
+			"special": "#7fe0d0",
+			"water": "#2f5f66",
+			"rim": "#1a2124",
+			"sky": "#4a5a66",
+			"sun": "#b8f0e8",
+			"ambient": "#5a7078"
+		},
+		"props": "graves",
+		"monster": "ghost_knight"
 	}
 }

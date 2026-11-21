@@ -19,7 +19,7 @@ window/stretch/aspect="expand"
 
 [gui]
 
-theme/custom_font="res://assets/fonts/Fredoka.ttf"
+theme/custom_font="res://assets/fonts/SecularOne-Regular.ttf"
 
 [rendering]
 

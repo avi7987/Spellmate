@@ -53,4 +53,4 @@ static func biome(id: String) -> Dictionary:
 
 
 static func biome_ids() -> Array:
-	return ["meadow", "swamp", "fire", "ice", "desert", "candy", "mushroom"]
+	return ["meadow", "swamp", "fire", "ice", "desert", "candy", "mushroom", "ghost"]

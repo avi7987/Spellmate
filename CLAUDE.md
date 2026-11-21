@@ -13,11 +13,21 @@ limit, max 15 heroes on the field). Hero powers. Energy from miners at crystal m
 magic well, treasure chests and monster rewards). Kill the enemy king to win.
 WORLDS (biomes, `data/biomes.json`), chosen before a battle: meadow, swamp (mud slows), fire
 (lava burns, lava river), ice (slides fast), desert (deep sand), candy (sugar rage), mushrooms
-(spores heal). Every map: special ground, small lakes, shrines (healing spring, power stone,
+(spores heal), ghost castle (ghost mist = half damage). Every map: special ground, small lakes, shrines (healing spring, power stone,
 magic well), treasure chest pairs every 25 s, two monster camps in the middle.
 When a hero defeats a hero, an ARENA scene (`combat/battle_arena.gd`, built from the world and
 square where it happened) plays once per turn (setting: always / important / never).
 Daily quests in the village; the enemy king taunts the player.
+SIGNATURE MECHANIC (owner asked for something unique): DAY AND NIGHT. A cycle of 5 turns
+(day, day, night, night, eclipse; random start per battle). Day = the Sun (player) gets +30%
+damage and +15% speed, night = the Void does; the ECLIPSE recharges every power at once. The HUD
+shows the next 6 turns. Every hero fights differently (`trait` in heroes.json, BUnit.style()):
+pack (soldier), kite (archer), taunt (shield), momentum (knight), stealth (assassin), chain
+(queen), knockback (giant), setup (ballista), breath (dragon), scorch (fire mage). Every hero has
+TWO powers (`abilities`); the player picks one per hero in the heroes screen (settings.powers ->
+Battle.loadout). Each arena has a RIVAL KING (meta.json arenas: rival style swarm / magic /
+fortress / siege / all -> BattleAI.style, enemy deck, taunts). While planning, arrows show where
+every hero is going and a ring shows how far a chosen hero walks in one turn.
 Between battles: a 3D base village (buildings unlock heroes), hero levels, deck, chests, trophies, arenas.
 Design doc (Hebrew GDD): https://claude.ai/artifact/HXu7MHfE4DuFUTcmkgh3To
 The owner is not a developer: explain changes in plain Hebrew, keep UI text Hebrew.
@@ -47,12 +57,13 @@ The owner wants many questions (in Hebrew, with many options) before big changes
 - `ui/` – `BattleHud` (turn strip, wax seal "בצע!", hero info page, turn summary, cinema bars,
   help page), `BattleCard`, `ResultsPanel`, `HeroTexts` (all Hebrew hero/spell/power text, funny
   lines, HOW_TO_PLAY, TIPS for the hero book).
-- UI STYLE = ANCIENT SPELLBOOK (owner's choice): `UiKit` (parchment panels with burnt edges,
-  ink text, gold-leaf titles), `BookButton` (stitched leather / paper / red wax seal),
-  `BookDecor` (gold corner flourishes). Fonts: titles Noto Rashi Hebrew, text David Libre.
-  Textures from `tools/make_ui_textures.py` (`assets/ui/`). Short labels do not wrap; long
-  texts need autowrap + a width. The web build has no system fonts: symbols/emoji come from
-  NotoSansSymbols2 + NotoEmoji set as fallbacks in `UiKit.setup_fonts()` - keep it that way.
+- UI STYLE = BOLD MOBILE GAME with a knightly touch (owner: "cool and knightly, not old"):
+  `UiKit` (titles/buttons Noto Serif Hebrew Black, text Secular One; white/gold text with a thick
+  dark outline and shadow; rounded deep-blue panels), `GameButton`, `PanelDecor`, `WorldTile`.
+  ALL TEXT IS RIGHT-TO-LEFT. Short labels do not wrap; long texts need autowrap + a width; long
+  pages go in a ScrollContainer (a page taller than the screen hid the close button). Hebrew:
+  natural, plural address ("לחצו"). The web build has no system fonts: symbols/emoji come from
+  NotoSansSymbols2 + NotoEmoji fallbacks in `UiKit.setup_fonts()` - keep it that way.
 - `audio/` – `Sfx.play(name)`, `Music.play("base"|"plan"|"battle")` (cross-fades, tracks keep
   running), `Voice.babble(hero)`. Effects/voices: `tools/make_sounds.py`; knightly music
   (drums, brass, strings, lute, harp) + fanfare/lose: `tools/make_music.py`. No downloads.
@@ -69,6 +80,8 @@ The owner wants many questions (in Hebrew, with many options) before big changes
 - King is untargetable until his gate or a tower falls. A fallen tower leaves a breach.
 - Hero card: any number of times; after each use it recharges 5 s (one turn). Max 15 heroes.
   Spells have a cooldown. The screen shows waits in turns (seconds / 5).
+- Fairness: maps, the starting army, summon spots and monster camps are point-symmetric. Check
+  with computer-vs-computer runs whenever rules change (both sides should win about equally).
 - Units act in an order that alternates every tick (otherwise the side that acts second always
   wins equal fights - this was a real bias, keep it). Towers ignore neutral monsters; monsters
   guard their camp (aggro 2.6 from home, leash 5.5) and give energy + gold to whoever kills them.

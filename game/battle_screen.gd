@@ -57,10 +57,19 @@ var scene_mode := "always"          ## arena scenes: always (once a turn) / impo
 var _arena_used := false
 
 
+var app: Node = null                 ## the App (for the day / night light)
+var _power_scene_used := false
+var rival: Dictionary = {}           ## the arena's rival king (name, style) from data/meta.json
+
+
 func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_level: int, ai_levels: Dictionary = {}, biome: String = "meadow") -> void:
 	_size = size
 	battle = Battle.create(size, [deck, ai_deck], [levels, ai_levels], randi() % 1000, biome)
 	ai = BattleAI.new(1, ai_level)
+	ai.style = rival.get("rival", "all")
+	# the rival picks his heroes' powers at random, for variety
+	for h in BattleData.hero_ids():
+		battle.loadout[1][h] = randi() % 2
 	view = BattleView.new()
 	view.camera_rig = camera_rig
 	add_child(view)
@@ -90,7 +99,9 @@ func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_lev
 	camera_rig.distance = 17.0 if size == "small" else 19.0
 	var gate: Vector2i = battle.map["palaces"][0]["gate"]
 	camera_rig.look_at_point(view.to_world(Vector2(gate) + Vector2(0, 2.5)), false)
-	hud.flash("תור 1 · תכננו את המהלך!", UiKit.GOLD, 1.2)
+	hud.flash(rival.get("rival_name", "תור 1 · תכננו את המהלך!"), UiKit.GOLD, 1.4)
+	if app != null:
+		app.set_sky(battle.sky_at(0), battle.world)
 	Sfx.play("horn")
 	Music.play("plan")
 	_begin_plan()
@@ -98,7 +109,7 @@ func start(size: String, deck: Array, levels: Dictionary, ai_deck: Array, ai_lev
 
 func _begin_plan() -> void:
 	phase = Phase.PLAN
-	if turn % 3 == 2 or _king_hurt_new():
+	if turn % 2 == 0 or _king_hurt_new():
 		_taunt()
 	speed = 1.0
 	hud.set_phase(phase, turn, 0.0)
@@ -133,6 +144,7 @@ func execute_turn() -> void:
 	_turn_stats = { "kills": 0, "lost": 0, "energy": 0.0, "damage_done": 0.0, "damage_taken": 0.0, "structures": [] }
 	_turn_left = TURN_SECONDS
 	_scene_used = false
+	_power_scene_used = false
 	_arena_used = false
 	phase = Phase.ACTION
 	hud.set_hint("")
@@ -222,6 +234,10 @@ func _process(delta: float) -> void:
 				view.play_events(events)
 				_react(events)
 	selected = selected.filter(func(id): return battle.unit(id) != null)
+	if phase == Phase.PLAN:
+		view.draw_plans(selected, TURN_SECONDS)
+	else:
+		view.hide_plans()
 	_update_target_preview()
 	hud.refresh(self)
 	if tutorial != null:
@@ -342,15 +358,32 @@ func _react(events: Array) -> void:
 				Sfx.play(_power_sound(e))
 				if e.get("team", 0) == 0:
 					_stats["powers" if e["type"] == "ability" else "spells"] += 1
-				if e["type"] == "ability":
+				if e["type"] == "ability" and not _power_scene_used and phase == Phase.ACTION and scene_mode != "never":
 					var who := battle.unit(e["id"])
 					var title := HeroTexts.ability_name(e["ability"])
 					if who != null:
 						title = "%s: %s" % [HeroTexts.name_of(who.kind), title]
+					_scene_used = false
+					_power_scene_used = true
 					_maybe_scene(e["pos"], title)
 			"energy":
 				if e["team"] == 0 and e["id"] >= 0:
 					Sfx.play("coin", 0.25)
+			"sky":
+				if app != null:
+					app.set_sky(e["sky"], battle.world)
+				if e["turn"] > 0:
+					match e["sky"]:
+						"night":
+							hud.flash("הלילה ירד · ממלכת האופל מתחזקת", Color(0.75, 0.7, 1.0), 1.0)
+						"day":
+							hud.flash("השמש זורחת · אתם מתחזקים!", UiKit.GOLD, 1.0)
+			"eclipse":
+				Sfx.play("power")
+				if camera_rig:
+					camera_rig.shake(0.15, 0.6)
+				hud.cinematic(true, "ליקוי חמה! כל הכוחות נטענו")
+				get_tree().create_timer(1.6).timeout.connect(func(): if phase != Phase.SCENE: hud.cinematic(false, ""))
 			"treasure":
 				if e["team"] == 0:
 					_stats["treasures"] += 1
@@ -408,7 +441,7 @@ func _taunt() -> void:
 	if k == null or not view.view(k.id):
 		return
 	var exposed := battle.king_exposed(1) or k.hp < k.max_hp
-	var lines: Array = HeroTexts.TAUNTS_HURT if exposed else HeroTexts.TAUNTS
+	var lines: Array = HeroTexts.TAUNTS_HURT if exposed else (HeroTexts.RIVAL_TAUNTS.get(rival.get("rival", ""), []) + HeroTexts.TAUNTS)
 	var cam := get_viewport().get_camera_3d()
 	var p := cam.unproject_position(view.view(k.id).global_position + Vector3(0, 2.4, 0))
 	var vs := get_viewport().get_visible_rect().size

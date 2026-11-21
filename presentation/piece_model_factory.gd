@@ -38,7 +38,7 @@ static func build_hero(id: String, color: int) -> Node3D:
 		"king": _king(root, color)
 		"queen": _witch(root, color)
 		"dragon": _dragon(root, color)
-		"goblin", "toad", "imp", "yeti", "scorpion", "gummy", "shroom": _monster(root, id)
+		"goblin", "toad", "imp", "yeti", "scorpion", "gummy", "shroom", "ghost_knight": _monster(root, id)
 		"ballista": _ballista(root, color)
 		_: _shieldbearer(root, color)
 	root.scale = Vector3.ONE * float(def.get("scale", 1.0))
@@ -602,6 +602,13 @@ static func _monster(root: Node3D, id: String) -> void:
 				_add(root, _sphere(0.17), gum, Vector3(side * 0.2, 0.12, 0.05))
 			eye.call(root, Vector3(0, 1.2, 0.27), 0.07)
 			_add(root, _sphere(0.1), Style.toon(Color(0.6, 0.1, 0.15), 0, 0.3, false), Vector3(0, 1.08, 0.3))
+		"ghost_knight":
+			var ghost := Style.overlay(Color(0.6, 1.0, 0.92, 0.55), false)
+			_add(root, _cyl(0.32, 0.05, 1.0), ghost, Vector3(0, 0.75, 0))   # a wispy body without legs
+			_add(root, _sphere(0.38), ghost, Vector3(0, 1.1, 0), Vector3.ZERO, Vector3(1.1, 0.9, 1))
+			_add(root, _sphere(0.3), Style.toon(Color(0.45, 0.5, 0.55), 0.7, 0.4), Vector3(0, 1.55, 0))   # helmet
+			_add(root, _box(Vector3(0.36, 0.06, 0.05)), Style.glow(Color(0.5, 1.0, 0.9), 2.5), Vector3(0, 1.55, 0.27))   # glowing visor
+			_add(root, _box(Vector3(0.06, 0.9, 0.04)), Style.toon(Color(0.7, 0.75, 0.8), 0.8, 0.3), Vector3(0.45, 1.0, 0.15), Vector3(0, 0, -20))   # sword
 		"shroom":
 			_add(root, _cyl(0.25, 0.32, 0.8), Style.toon(Color(0.92, 0.9, 0.82), 0, 0.6), Vector3(0, 0.4, 0))
 			var cap := SphereMesh.new()

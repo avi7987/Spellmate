@@ -20,6 +20,9 @@ var from_card := ""          ## the deck card this hero came from ("" = free uni
 var heal: float = 0.0        ## healers heal instead of hitting
 var home := Vector2.ZERO      ## neutral monsters guard this spot
 var last_hit_team := -1       ## who hit it last (monster rewards)
+var walked := 0.0             ## distance walked since the last attack (knight momentum)
+var still_since := 0.0        ## when it last stopped moving (ballista setup)
+var revealed_until := -1.0    ## stealth: visible until then after attacking
 var last_hit_id := -1         ## the unit that hit it last (arena scenes)
 var last_hit_kind := ""
 var flying := false
@@ -51,6 +54,10 @@ func can_act(now: float) -> bool:
 
 func role() -> String:
 	return data.get("role", "")
+
+
+func style() -> String:
+	return data.get("trait", "")
 
 
 func cell() -> Vector2i:

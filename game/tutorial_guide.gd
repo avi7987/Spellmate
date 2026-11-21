@@ -11,6 +11,8 @@ var _count: Label
 var _panel: PanelContainer
 var _t := 0.0
 var _start := {}
+var _arrow: Label
+var _arrow_t := 0.0
 
 
 func setup(_bs: BattleScreen) -> void:
@@ -44,9 +46,14 @@ func setup(_bs: BattleScreen) -> void:
 	top.add_child(_count)
 	var skip := UiKit.button("לדלג על ההדרכה", UiKit.BUTTON_STEEL, 15)
 	skip.custom_minimum_size = Vector2(150, 36)
-	skip.pressed.connect(func(): _i = _steps.size(); _panel.visible = false)
+	skip.pressed.connect(func(): _i = _steps.size(); _panel.visible = false; _arrow.visible = false)
 	top.add_child(skip)
 	v.add_child(top)
+	# a big bouncing arrow that points at what to press or look at
+	_arrow = UiKit.title("⬇", 64, UiKit.GOLD)
+	_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_arrow.size = Vector2(80, 80)
+	add_child(_arrow)
 	_label = UiKit.label("", 22, UiKit.TEXT, 700)
 	_label.custom_minimum_size = Vector2(640, 0)
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -71,10 +78,58 @@ func _show() -> void:
 	Sfx.play("reward", 0.6)
 
 
+## Where the arrow points in each step (screen position), or none.
+func _arrow_target(b: BattleScreen) -> Vector2:
+	var cam := b.get_viewport().get_camera_3d()
+	var world := func(p: Vector2) -> Vector2: return cam.unproject_position(b.view.to_world(p) + Vector3(0, 1.6, 0))
+	var center := func(c: Control) -> Vector2: return c.get_global_rect().get_center() - Vector2(0, c.size.y * 0.5 + 10)
+	match _i:
+		0:
+			var g0: Vector2i = b.battle.map["palaces"][0]["gate"]
+			return world.call(Vector2(g0))
+		1:
+			var army := b.battle.heroes_of(0)
+			if army.is_empty():
+				return Vector2(-1, -1)
+			var avg := Vector2.ZERO
+			for u: BUnit in army:
+				avg += u.pos
+			return world.call(avg / army.size())
+		2:
+			var gate: Vector2i = b.battle.map["palaces"][0]["gate"]
+			return world.call(Vector2(gate) + Vector2(0, 5))
+		3:
+			return center.call(b.hud._execute)
+		4:
+			for c in b.hud.cards:
+				if not BattleData.is_spell(c.card_id) and c.ready_now():
+					return center.call(c)
+		5:
+			for c in b.hud.cards:
+				if c.card_id == "fire_bomb":
+					return center.call(c)
+		6:
+			for u: BUnit in b.battle.heroes_of(0):
+				if u.kind == "queen":
+					return world.call(u.pos)
+		7:
+			return center.call(b.hud.help_button)
+		8:
+			var g: Vector2i = b.battle.map["palaces"][1]["gate"]
+			return world.call(Vector2(g))
+	return Vector2(-1, -1)
+
+
 func update(b: BattleScreen) -> void:
 	if _i >= _steps.size():
+		_arrow.visible = false
 		return
 	_t += get_process_delta_time()
+	_arrow_t += get_process_delta_time()
+	visible = b.phase != BattleScreen.Phase.ARENA and b.phase != BattleScreen.Phase.SCENE
+	var target := _arrow_target(b)
+	_arrow.visible = target.x >= 0 and b.phase == BattleScreen.Phase.PLAN
+	_arrow.position = target - Vector2(40, 80 + absf(sin(_arrow_t * 5.0)) * 18.0)
 	if _i == 4 and not _start.has("summons"):
 		_start["summons"] = _summons(b)
 	if _steps[_i][1].call(b):

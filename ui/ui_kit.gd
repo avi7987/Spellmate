@@ -1,14 +1,17 @@
 class_name UiKit
 extends RefCounted
-## The game's look for every screen: a bright MOBILE-GAME style (owner's choice).
-##   - one font everywhere: Fredoka (round and bold), always white or gold with a
-##     thick dark outline and a soft shadow, so it reads on any background
+## The game's look for every screen: a bright mobile-game style with a KNIGHTLY
+## touch (owner's choice: "cool and knightly, but not old").
+##   - titles and buttons: Noto Serif Hebrew Black (a strong modern serif, like an
+##     epic movie title); text: Secular One (clean, bold). Always white or gold
+##     with a thick dark outline and a soft shadow, so it reads on any background
 ##   - panels: rounded deep-blue boards with a dark rim and a glossy top
 ##   - buttons: chunky coloured "3D" buttons that press down
 ##   - all text is right-to-left (Hebrew): labels, buttons and drawn text
 ## Use these helpers for all UI so everything shares one style.
 
-const FONT_FILE := preload("res://assets/fonts/Fredoka.ttf")
+const FONT_FILE := preload("res://assets/fonts/SecularOne-Regular.ttf")     ## text: clean and bold
+const FONT_TITLE_FILE := preload("res://assets/fonts/NotoSerifHebrew.ttf")  ## titles and buttons: knightly serif
 const FONT_SYMBOLS := preload("res://assets/fonts/NotoSansSymbols2-Regular.ttf")
 const FONT_EMOJI := preload("res://assets/fonts/NotoEmoji.ttf")
 
@@ -42,19 +45,22 @@ static func setup_fonts() -> void:
 	if _fallbacks_done:
 		return
 	_fallbacks_done = true
-	var f: FontFile = FONT_FILE
-	f.fallbacks = [FONT_SYMBOLS, FONT_EMOJI]
+	for font_file in [FONT_FILE, FONT_TITLE_FILE]:
+		var f: FontFile = font_file
+		f.fallbacks = [FONT_SYMBOLS, FONT_EMOJI]
 
 
+## weight >= 700 = the knightly title font, below = the text font.
 static func font(weight: int = 600) -> Font:
 	setup_fonts()
-	var w := clampi(weight, 400, 700)
-	if not _fonts.has(w):
+	if weight < 700:
+		return FONT_FILE
+	if not _fonts.has("title"):
 		var f := FontVariation.new()
-		f.base_font = FONT_FILE
-		f.variation_opentype = { TextServerManager.get_primary_interface().name_to_tag("wght"): w }
-		_fonts[w] = f
-	return _fonts[w]
+		f.base_font = FONT_TITLE_FILE
+		f.variation_opentype = { TextServerManager.get_primary_interface().name_to_tag("wght"): 900 }
+		_fonts["title"] = f
+	return _fonts["title"]
 
 
 static func title_font() -> Font:

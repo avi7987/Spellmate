@@ -455,19 +455,20 @@ func _building_panel(id: String) -> Control:
 func _heroes_panel() -> Control:
 	var f := _frame("הגיבורים שלכם", UiKit.GOLD, 900)
 	var v: VBoxContainer = f[1]
-	v.add_child(UiKit.label("⭐ ניסיון מקבלים בקרבות ובתיבות. עם מספיק ניסיון וזהב משדרגים גיבור, וכל דרגה מוסיפה לו 10% חיים ונזק.", 16, UiKit.TEXT_SOFT))
+	v.add_child(UiKit.label("⭐ ניסיון מקבלים בקרבות ובתיבות. עם ניסיון וזהב משדרגים גיבור: כל דרגה מוסיפה 10% חיים ונזק. בכפתורים הסגולים בוחרים איזה כוח הגיבור לוקח לקרב.", 16, UiKit.TEXT_SOFT))
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(860, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(scroll)
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
 	scroll.add_child(grid)
 	var all := BattleData.hero_ids().filter(func(h): return h != "king") + BattleData.spell_ids()
 	for id in all:
 		var box := VBoxContainer.new()
-		box.custom_minimum_size = Vector2(160, 0)
+		box.custom_minimum_size = Vector2(200, 0)
 		var card := BattleCard.new()
 		card.setup(0, id)
 		card.key_hint = ""
@@ -492,6 +493,25 @@ func _heroes_panel() -> Control:
 					profile.save()
 					_reopen(_heroes_panel))
 			box.add_child(b)
+			# pick which of the two powers this hero brings to battle
+			var abs: Array = BattleData.hero(id).get("abilities", [])
+			if abs.size() > 1:
+				var prow := HBoxContainer.new()
+				prow.add_theme_constant_override("separation", 3)
+				var cur := int(profile.settings.get("powers", {}).get(id, 0))
+				for k in abs.size():
+					var pb := UiKit.button(HeroTexts.ability_name(abs[k]["id"]), UiKit.BUTTON_PURPLE if k == cur else UiKit.BUTTON_GREY, 12)
+					pb.custom_minimum_size = Vector2(78, 38)
+					pb.tooltip_text = HeroTexts.ability_desc(abs[k]["id"])
+					pb.pressed.connect(func():
+						var powers: Dictionary = profile.settings.get("powers", {})
+						powers[id] = k
+						profile.settings["powers"] = powers
+						profile.save()
+						Sfx.play("select")
+						_reopen(_heroes_panel))
+					prow.add_child(pb)
+				box.add_child(prow)
 		grid.add_child(box)
 	return f[0]
 
@@ -758,10 +778,15 @@ func _book_panel(id: String) -> Control:
 	spine.color = Color(UiKit.GOLD_DARK.r, UiKit.GOLD_DARK.g, UiKit.GOLD_DARK.b, 0.6)
 	spine.custom_minimum_size = Vector2(2, 0)
 	spread.add_child(spine)
+	# the page scrolls, so a long page never pushes the window off the screen
+	var page_scroll := ScrollContainer.new()
+	page_scroll.custom_minimum_size = Vector2(640, 470)
+	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	spread.add_child(page_scroll)
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 8)
 	page.custom_minimum_size = Vector2(620, 0)
-	spread.add_child(page)
+	page_scroll.add_child(page)
 	if id == "how":
 		page.add_child(UiKit.title("איך משחקים", 36))
 		for t in HeroTexts.HOW_TO_PLAY:
@@ -812,11 +837,18 @@ func _book_panel(id: String) -> Control:
 			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			grid.add_child(bar)
 		page.add_child(grid)
-		var ab: Dictionary = d.get("ability", {})
-		if not ab.is_empty():
-			page.add_child(UiKit.label("כוח מיוחד: %s · %d אנרגיה · נטען תוך %d תורות" % [HeroTexts.ability_name(ab["id"]), int(ab.get("cost", 0)),
-				ceili(float(ab.get("cooldown", 10)) / BattleScreen.TURN_SECONDS)], 20, UiKit.ACCENT, 700))
-			page.add_child(UiKit.label(HeroTexts.ability_desc(ab["id"]), 18, UiKit.TEXT))
+		if HeroTexts.style_of(id) != "":
+			page.add_child(UiKit.illuminated("סגנון לחימה: " + HeroTexts.style_of(id), 18, 610))
+		var abs: Array = d.get("abilities", [])
+		for k in abs.size():
+			var ab: Dictionary = abs[k]
+			var pl := UiKit.label("כוח %d: %s · %d אנרגיה · נטען תוך %d תורות" % [k + 1, HeroTexts.ability_name(ab["id"]), int(ab.get("cost", 0)),
+				ceili(float(ab.get("cooldown", 10)) / BattleScreen.TURN_SECONDS)], 18, UiKit.ACCENT, 700)
+			pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			page.add_child(pl)
+			var dl := UiKit.label(HeroTexts.ability_desc(ab["id"]), 16, UiKit.TEXT)
+			dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			page.add_child(dl)
 	var tip: Array = HeroTexts.TIPS.get(id, ["", "", ""])
 	if tip[0] != "":
 		page.add_child(UiKit.illuminated("עצה: " + tip[0], 18, 610))

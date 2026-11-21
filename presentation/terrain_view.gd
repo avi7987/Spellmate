@@ -198,6 +198,12 @@ func _cyl(top_r: float, bottom_r: float, h: float, seg: int = 10) -> CylinderMes
 	return c
 
 
+func _box_m(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
 func _ball(r: float) -> SphereMesh:
 	var m := SphereMesh.new()
 	m.radius = r
@@ -247,6 +253,14 @@ func _world_prop(p: Vector3, rng: RandomNumberGenerator) -> void:
 			var disc := _cyl(0.17 * sc, 0.17 * sc, 0.06, 20)
 			_mi(disc, Style.toon(cols[rng.randi() % cols.size()], 0.1, 0.3, false), p + Vector3(0, 0.6 * sc, 0), Vector3(90, rng.randf() * 360.0, 0))
 			_mi(_cyl(0.08 * sc, 0.08 * sc, 0.07, 16), Style.toon(Color.WHITE, 0, 0.3, false), p + Vector3(0, 0.6 * sc, 0), Vector3(90, 0, 0))
+		"graves":
+			var stone := Style.toon(Color(0.55, 0.58, 0.6), 0.0, 0.9, false)
+			if rng.randf() < 0.6:
+				_mi(_box_m(Vector3(0.24 * sc, 0.34 * sc, 0.07)), stone, p + Vector3(0, 0.17 * sc, 0), Vector3(-8, rng.randf_range(-20, 20), rng.randf_range(-8, 8)))
+				_mi(_cyl(0.12 * sc, 0.12 * sc, 0.07, 12), stone, p + Vector3(0, 0.34 * sc, 0), Vector3(90, 0, 0))
+			else:
+				_mi(_cyl(0.02, 0.03, 0.6 * sc), Style.toon(Color(0.2, 0.2, 0.22), 0.5, 0.5, false), p + Vector3(0, 0.3 * sc, 0))
+				_mi(_ball(0.08), Style.glow(Color(0.5, 1.0, 0.9), 2.0), p + Vector3(0, 0.62 * sc, 0))   # a ghost lantern
 		"mushrooms":
 			var cap_c: Color = [Color(0.3, 0.95, 0.85), Color(0.75, 0.45, 1.0), Color(1.0, 0.5, 0.8)][rng.randi() % 3]
 			_mi(_cyl(0.05 * sc, 0.07 * sc, 0.35 * sc), Style.toon(Color(0.9, 0.88, 0.8), 0, 0.6, false), p + Vector3(0, 0.17 * sc, 0))
@@ -273,6 +287,8 @@ func _tiny(p: Vector3, rng: RandomNumberGenerator) -> void:
 			_mi(_ball(0.05), Style.toon([Color(1, 0.3, 0.4), Color(0.4, 0.8, 1), Color(1, 0.9, 0.3)][rng.randi() % 3], 0.1, 0.3, false), p + off)
 		"mushrooms":
 			_mi(_ball(0.03), Style.glow(Color(0.4, 1.0, 0.9), 1.6), p + off)
+		"graves":
+			_mi(_ball(0.04), Style.toon(Color(0.9, 0.9, 0.85), 0, 0.6, false), p + off, Vector3.ZERO, Vector3(1.6, 0.5, 0.6))   # a little bone
 
 
 ## The world's special ground: mud, lava, ice, deep sand, candy or glowing spores.
@@ -288,6 +304,9 @@ func _special_tile(pos: Vector3, c: Color, shade: int, rng: RandomNumberGenerato
 			_add("candy", Vector3(0.98, TILE_HEIGHT, 0.98), Style.toon(c, 0.1, 0.3, false), pos)
 			for i in 3:
 				_add("stripe", Vector3(0.98, 0.012, 0.1), Style.toon(Color(1.0, 0.4, 0.55), 0, 0.3, false), top + Vector3(0, 0.005, -0.3 + i * 0.3))
+		"graves":       # ghost mist: glowing, misty ground
+			_add("mist", Vector3(0.98, TILE_HEIGHT, 0.98), Style.glow(c.darkened(0.7), 0.4), pos)
+			_add("wisp", Vector3(0.5, 0.02, 0.3), Style.overlay(Color(c.r, c.g, c.b, 0.35)), top + Vector3(rng.randf_range(-0.2, 0.2), 0.04, rng.randf_range(-0.2, 0.2)))
 		"mushrooms":    # glowing spores
 			_add("spore_ground", Vector3(0.98, TILE_HEIGHT, 0.98), Style.matte(_col("plain", c).darkened(0.1)), pos)
 			for i in 3:

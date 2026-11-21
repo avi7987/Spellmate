@@ -48,6 +48,17 @@ var _treasure_at := 0.0
 var _energy_well_timer := 0.0
 var _next_pickup := 1
 var _tick_n := 0
+## Which power each hero uses, per team: { hero id: 0 or 1 } (picked in the deck screen).
+var loadout: Array = [{}, {}]
+## DAY AND NIGHT: a cycle of SKY_CYCLE turns. Day = the Sun is stronger, night = the
+## Void is stronger, and after every night comes an ECLIPSE: all powers recharge at once.
+const TURN := 5.0
+const SKY_CYCLE := ["day", "day", "night", "night", "eclipse"]
+const SKY_BONUS_DMG := 1.3
+const SKY_BONUS_SPEED := 1.15
+var _sky_turn := -1
+## Where in the day/night cycle this battle starts (random, so neither side always gets the first day).
+var sky_offset := 0
 var _acc := 0.0
 var _mine_owner: Dictionary = {}   ## Vector2i -> unit id working it
 var _safety_timer: Array = [0.0, 0.0]
@@ -60,6 +71,7 @@ static func create(size: String, decks: Array, team_levels: Array = [{}, {}], se
 	var b := Battle.new()
 	b.rng.seed = seed_value
 	b.biome = p_biome
+	b.sky_offset = b.rng.randi_range(0, SKY_CYCLE.size() - 2)   # never start on an eclipse
 	b.world = BattleData.biome(p_biome)
 	b.map = MapGen.make(size, seed_value, p_biome)
 	b.w = b.map["w"]
@@ -81,7 +93,8 @@ static func create(size: String, decks: Array, team_levels: Array = [{}, {}], se
 		for hero in BattleData.cfg().get("start_army", []):
 			var spawn: Vector2i = b.map["palaces"][team]["spawn"]
 			var dir := 1 if team == 0 else -1
-			var p := Vector2(spawn.x + (i % 3 - 1) * 1.0, spawn.y + dir * (1 + i / 3))
+			# mirrored for the Void so both armies stand the same way (fair)
+			var p := Vector2(spawn.x + dir * (i % 3 - 1) * 1.0, spawn.y + dir * (1 + i / 3))
 			var u := b._spawn_hero(team, hero, p)
 			i += 1
 	b._spawn_monsters()
@@ -173,7 +186,35 @@ func card_cost(id: String) -> float:
 
 
 func ability_of(u: BUnit) -> Dictionary:
-	return u.data.get("ability", {})
+	var list: Array = u.data.get("abilities", [])
+	if list.is_empty():
+		return u.data.get("ability", {})
+	if u.team > 1:
+		return {}
+	var i := clampi(int(loadout[u.team].get(u.kind, 0)), 0, list.size() - 1)
+	return list[i]
+
+
+## The sky in the given turn (0 = first turn): "day", "night" or "eclipse".
+static func sky_of_turn(turn_index: int) -> String:
+	return SKY_CYCLE[turn_index % SKY_CYCLE.size()]
+
+
+## The sky in turn `turn_index` of THIS battle.
+func sky_at(turn_index: int) -> String:
+	return sky_of_turn(turn_index + sky_offset)
+
+
+func sky() -> String:
+	return sky_at(int(time / TURN))
+
+
+## Which kingdom the sky favours now (-1 = nobody).
+func favoured_team() -> int:
+	match sky():
+		"day": return 0
+		"night": return 1
+	return -1
 
 
 func palace_upgrade_cost(team: int) -> int:
@@ -252,7 +293,10 @@ func play_card(team: int, idx: int, pos: Vector2 = Vector2.ZERO) -> bool:
 		return false
 	energy[team] -= card_cost(id)
 	var spawn: Vector2i = map["palaces"][team]["spawn"]
-	var u := _spawn_hero(team, id, Vector2(spawn) + Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(0.0, 0.6) * (1 if team == 0 else -1)))
+	# a little spread so new heroes do not stand on each other (mirrored, so it stays fair)
+	var k: int = summons[team]
+	var off := Vector2([0.0, -0.5, 0.5, -0.25, 0.25][k % 5], 0.15 * (k % 3))
+	var u := _spawn_hero(team, id, Vector2(spawn) + off * (1 if team == 0 else -1))
 	u.from_card = id
 	c["unit"] = u.id
 	c["ready_at"] = time + HERO_RECHARGE
@@ -330,6 +374,16 @@ func step(dt: float) -> void:
 func _tick(dt: float) -> void:
 	time += dt
 	_tick_n += 1
+	var turn_index := int(time / TURN)
+	if turn_index != _sky_turn:
+		_sky_turn = turn_index
+		var now := sky_at(turn_index)
+		events.append({ "type": "sky", "sky": now, "turn": turn_index })
+		if now == "eclipse":
+			# the eclipse: every hero's power is ready at once
+			for u: BUnit in units:
+				u.ability_ready_at = 0.0
+			events.append({ "type": "eclipse" })
 	# Units act one after another; whoever acts second reacts to the first one's
 	# move. Alternate the order every tick so neither kingdom always gets that edge.
 	var order := units.duplicate()
@@ -391,7 +445,7 @@ func _structure_think(u: BUnit) -> void:
 	var best: BUnit = null
 	var best_d := INF
 	for e: BUnit in units:
-		if e.team == u.team or e.structure or e.team == NEUTRAL or not can_target(u.team, e):
+		if e.team == u.team or e.structure or e.team == NEUTRAL or not can_target(u.team, e) or hidden_from(e, u.pos):
 			continue
 		var d := u.pos.distance_to(e.pos) - e.radius
 		if d <= u.range_ and d < best_d:
@@ -439,6 +493,8 @@ func _hero_think(u: BUnit, dt: float) -> void:
 
 ## No orders: miners mine, healers heal, everyone else fights enemies that come close.
 func _idle_think(u: BUnit, dt: float) -> void:
+	if _kite(u, dt):
+		return
 	if u.role() == "healer":
 		var f := _hurt_friend_near(u, u.range_ + 3.0)
 		if f != null:
@@ -460,6 +516,22 @@ func _idle_think(u: BUnit, dt: float) -> void:
 			_hit(u, e)
 		else:
 			_walk_toward(u, e.pos, dt, e)
+
+
+## Archers step back from melee enemies that come too close, then shoot again.
+func _kite(u: BUnit, dt: float) -> bool:
+	if u.style() != "kite":
+		return false
+	for e: BUnit in units:
+		if e.team == u.team or e.structure or e.range_ > 2.0 or not can_target(u.team, e):
+			continue
+		if e.pos.distance_to(u.pos) < 1.3:
+			var away := (u.pos - e.pos).normalized()
+			var goal := u.pos + away * 2.0
+			if _passable_for(u, Vector2i(roundi(goal.x), roundi(goal.y))):
+				_step_to(u, goal, _speed(u) * dt)
+				return true
+	return false
 
 
 func _fight_in_reach(u: BUnit) -> bool:
@@ -491,6 +563,11 @@ func _hurt_friend_near(u: BUnit, radius: float) -> BUnit:
 	return best
 
 
+## A hidden assassin can only be found up close.
+func hidden_from(e: BUnit, viewer_pos: Vector2) -> bool:
+	return e.style() == "stealth" and time > e.revealed_until and e.pos.distance_to(viewer_pos) > 1.6
+
+
 func _nearest_enemy(u: BUnit, radius: float) -> BUnit:
 	var best: BUnit = null
 	var best_score := INF
@@ -500,6 +577,11 @@ func _nearest_enemy(u: BUnit, radius: float) -> BUnit:
 			continue
 		if map["fog"] and not is_visible(u.team, e.pos):
 			continue
+		if hidden_from(e, u.pos):
+			continue
+		# the bone guard draws every enemy near it to attack him
+		if e.style() == "taunt" and e.pos.distance_to(u.pos) <= 2.6 and not u.structure:
+			return e
 		var d := u.pos.distance_to(e.pos) - e.radius
 		if d > radius:
 			continue
@@ -525,6 +607,9 @@ func _hit(u: BUnit, t: BUnit) -> void:
 	u.path = []
 	if time < u.attack_ready_at:
 		return
+	# the ballista must stand still a moment before it can shoot
+	if u.style() == "setup" and time - u.still_since < 1.0:
+		return
 	var slow := 1.5 if u.has_effect("slow", time) else 1.0
 	u.attack_ready_at = time + u.rate * slow
 	if u.role() == "healer" and t.team == u.team:
@@ -536,15 +621,72 @@ func _hit(u: BUnit, t: BUnit) -> void:
 	var dmg := u.dmg * _level_mult(u)
 	if u.has_effect("rage", time):
 		dmg *= 1.3
+	if u.team == favoured_team():
+		dmg *= SKY_BONUS_DMG
 	if t.structure or t.kind == "king":
 		dmg *= float(u.data.get("siege", 1.0))
 	if u.data.has("backstab") and t.target_id != u.id:
 		dmg *= float(u.data["backstab"])
+	var extra := {}
+	match u.style():
+		"pack":       # soldiers fight better together
+			var friends := 0
+			for f: BUnit in units:
+				if f != u and f.team == u.team and f.kind == u.kind and f.pos.distance_to(u.pos) < 1.6:
+					friends += 1
+			dmg *= 1.0 + 0.15 * mini(friends, 3)
+		"momentum":   # a knight that charged in hits twice as hard and stuns
+			if u.walked >= 3.0:
+				dmg *= 2.0
+				extra["stun"] = 0.6
+				events.append({ "type": "trait", "id": u.id, "trait": "momentum", "pos": t.pos })
+		"stealth":    # attacking reveals the assassin for a moment
+			u.revealed_until = time + 3.0
+	u.walked = 0.0
 	events.append({ "type": "attack", "id": u.id, "target": t.id, "ranged": u.range_ > 2.0 })
-	var splash := float(u.data.get("splash", 0.0))
 	_damage(t, dmg, u)
-	if u.data.has("slow"):
+	if extra.has("stun") and t.hp > 0.0 and not t.structure:
+		t.effects["stun"] = time + float(extra["stun"])
+	if u.data.has("slow") and not t.structure:
 		t.effects["slow"] = time + float(u.data["slow"])
+	match u.style():
+		"scorch":     # fire sets the target burning
+			if t.hp > 0.0 and not t.structure:
+				t.effects["burn"] = time + 2.0
+		"knockback":  # the giant throws heroes back
+			if t.hp > 0.0 and not t.structure and t.kind != "king":
+				var away := (t.pos - u.pos).normalized()
+				var np := t.pos + away * 1.2
+				if _passable_for(t, Vector2i(roundi(np.x), roundi(np.y))):
+					t.pos = np
+					t.path = []
+		"chain":      # the queen's bolt jumps to two more enemies
+			var last := t
+			var hit_ids := [t.id]
+			for k in 2:
+				var nxt: BUnit = null
+				var best := 2.6
+				for e: BUnit in units:
+					if hit_ids.has(e.id) or e.team == u.team or e.structure or not can_target(u.team, e):
+						continue
+					var dd := e.pos.distance_to(last.pos)
+					if dd < best:
+						best = dd
+						nxt = e
+				if nxt == null:
+					break
+				hit_ids.append(nxt.id)
+				events.append({ "type": "chain", "from": last.pos, "to": nxt.pos })
+				_damage(nxt, dmg * 0.6, u)
+				last = nxt
+		"breath":     # the dragon breathes fire on everyone in front of it
+			for e: BUnit in units.duplicate():
+				if e == t or e.team == u.team or not can_target(u.team, e):
+					continue
+				var v := e.pos - u.pos
+				if v.length() <= u.range_ + 1.2 and v.normalized().dot(u.facing) > 0.6:
+					_damage(e, dmg * 0.7, u)
+	var splash := float(u.data.get("splash", 0.0))
 	if splash > 0.0:
 		for e: BUnit in units.duplicate():
 			if e != t and e.team != u.team and can_target(u.team, e) and e.pos.distance_to(t.pos) <= splash:
@@ -811,7 +953,7 @@ func _mine(u: BUnit, dt: float) -> void:
 	if u.pos.distance_to(target) > 0.45:
 		_walk_toward(u, target, dt, null)
 		return
-	u.mine_timer += dt
+	u.mine_timer += dt * (2.0 if u.has_effect("rage", time) else 1.0)
 	if u.mine_timer >= BattleData.get_num("energy", "mine_interval", 2.2):
 		u.mine_timer = 0.0
 		_add_energy(u.team, BattleData.get_num("energy", "mine_amount", 1) * _level_mult(u), u)
@@ -836,6 +978,8 @@ func _speed(u: BUnit) -> float:
 		s *= 0.65
 	if not u.flying and terrain_at(u.cell()) == Chess.Terrain.SPECIAL:
 		s *= float(world.get("special", {}).get("speed", 1.0))
+	if u.team == favoured_team():
+		s *= SKY_BONUS_SPEED
 	return s
 
 
@@ -867,6 +1011,8 @@ func _walk_toward(u: BUnit, goal: Vector2, dt: float, chasing: BUnit) -> void:
 		var d := u.pos.distance_to(nxt)
 		if d <= left:
 			u.pos = nxt
+			u.walked += d
+			u.still_since = time
 			left -= d
 			u.path.pop_front()
 		else:
@@ -879,7 +1025,10 @@ func _step_to(u: BUnit, goal: Vector2, dist: float) -> void:
 	if v.length() < 0.0001:
 		return
 	u.facing = v.normalized()
-	u.pos += v.normalized() * minf(dist, v.length())
+	var step := minf(dist, v.length())
+	u.pos += v.normalized() * step
+	u.walked += step
+	u.still_since = time
 
 
 ## Heroes of one team push gently apart so a group does not melt into one spot.

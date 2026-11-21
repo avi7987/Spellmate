@@ -333,21 +333,34 @@ func open_chest(idx: int, rng: RandomNumberGenerator = null) -> Dictionary:
 	return { "type": type, "gold": g, "xp": xp_gifts }
 
 
-## The computer's deck for the current arena (stronger cards in later arenas).
+## The computer's deck for the current arena: each arena's rival king has his own style.
 func enemy_deck(rng: RandomNumberGenerator) -> Array:
 	var a := arena_index()
+	var style: String = arena().get("rival", "all")
 	var pool := ["soldier", "archer", "knight", "shield"]
 	if a >= 1: pool += ["fire_mage", "healer", "ice_witch", "queen"]
 	if a >= 2: pool += ["assassin", "giant"]
 	if a >= 3: pool += ["ballista", "dragon"]
-	pool.shuffle()
+	var favourites: Array = {
+		"swarm": ["soldier", "archer", "soldier"], "magic": ["fire_mage", "ice_witch", "queen", "healer"],
+		"fortress": ["shield", "archer", "healer"], "siege": ["giant", "ballista", "shield"], "all": ["dragon", "queen", "giant"],
+	}.get(style, [])
+	for i in pool.size():   # shuffle with the given rng
+		var j := rng.randi_range(i, pool.size() - 1)
+		var tmp = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
 	var deck_out := ["miner"]
-	for c in pool:
+	for c in favourites + pool:
 		if deck_out.size() >= 6:
 			break
-		deck_out.append(c)
+		if not deck_out.has(c) and BattleData.hero(c).size() > 0:
+			deck_out.append(c)
 	var spells := ["ice_bomb", "fire_bomb", "heal_potion", "shield_wall"]
-	spells.shuffle()
+	if style == "magic":
+		spells = ["fire_bomb", "ice_bomb", "heal_potion", "shield_wall"]
+	elif style == "fortress":
+		spells = ["shield_wall", "heal_potion", "ice_bomb", "fire_bomb"]
 	for sp in spells:
 		if deck_out.size() < 8:
 			deck_out.append(sp)

@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://81jb8n1gh42s"
-path="res://.godot/imported/Fredoka.ttf-38db4f924b441151c6642ef65fe93e1f.fontdata"
+uid="uid://cnlr0uk7dg6uo"
+path="res://.godot/imported/NotoSerifHebrew.ttf-383e4c2375e68bcfc9935c6f026a04ab.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Fredoka.ttf"
-dest_files=["res://.godot/imported/Fredoka.ttf-38db4f924b441151c6642ef65fe93e1f.fontdata"]
+source_file="res://assets/fonts/NotoSerifHebrew.ttf"
+dest_files=["res://.godot/imported/NotoSerifHebrew.ttf-383e4c2375e68bcfc9935c6f026a04ab.fontdata"]
 
 [params]
 

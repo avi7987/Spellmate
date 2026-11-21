@@ -175,32 +175,47 @@
 		{
 			"name": "שדה הכפר",
 			"trophies": 0,
-			"ai": 1,
-			"ai_level": 1
+			"ai": 2,
+			"ai_level": 1,
+			"rival": "swarm",
+			"rival_name": "המלך גרבוז הקמצן",
+			"rival_desc": "שולח המון חיילים זולים, מהר מאוד"
 		},
 		{
 			"name": "יער הצללים",
 			"trophies": 150,
 			"ai": 2,
-			"ai_level": 2
+			"ai_level": 2,
+			"rival": "magic",
+			"rival_name": "המכשפה-מלכה זירה",
+			"rival_desc": "אוהבת קסמים וכוחות מיוחדים"
 		},
 		{
 			"name": "הרי הקרח",
 			"trophies": 400,
 			"ai": 2,
-			"ai_level": 3
+			"ai_level": 3,
+			"rival": "fortress",
+			"rival_name": "המלך ברזלון העקשן",
+			"rival_desc": "מתגונן, משדרג את הארמון ומחכה לטעות שלכם"
 		},
 		{
 			"name": "מבצר הדרקון",
 			"trophies": 800,
 			"ai": 3,
-			"ai_level": 4
+			"ai_level": 4,
+			"rival": "siege",
+			"rival_name": "הענק קרשקרש",
+			"rival_desc": "ענקים ובליסטרות שהורסים מגדלים"
 		},
 		{
 			"name": "ארמון האופל",
 			"trophies": 1300,
 			"ai": 3,
-			"ai_level": 6
+			"ai_level": 6,
+			"rival": "all",
+			"rival_name": "אדון האופל",
+			"rival_desc": "משתמש בהכול, וחזק מכולם"
 		}
 	],
 	"quests": [

@@ -48,7 +48,12 @@ var _summary: PanelContainer
 var _bars: Array = []
 var _scene_title: Label
 var _help: Control
+var help_button: Button
+var _sky_row: HBoxContainer
+var _sky_label: Label
+var _sound_btn: Button
 var _top_bar: Control
+var _name_labels: Array = []
 var _bottom_bar: Control
 var _side_box: Control
 
@@ -125,6 +130,7 @@ func _build_top() -> void:
 		v.add_theme_constant_override("separation", 0)
 		v.custom_minimum_size = Vector2(230, 0)
 		var name_l := UiKit.label("ממלכת השמש ☀" if team == 0 else "ממלכת האופל ☾", 21, UiKit.TEXT, 800)
+		_name_labels.append(name_l)
 		v.add_child(name_l)
 		var pb := ProgressBar.new()
 		pb.show_percentage = false
@@ -136,7 +142,7 @@ func _build_top() -> void:
 		fill.set_corner_radius_all(4)
 		pb.add_theme_stylebox_override("fill", fill)
 		v.add_child(pb)
-		var info := UiKit.label("", 15, UiKit.TEXT_SOFT)
+		var info := UiKit.label("", 13, UiKit.TEXT_SOFT)
 		v.add_child(info)
 		_team_bars.append([team, pb, info])
 		bar.add_child(_strip(v))
@@ -158,6 +164,18 @@ func _build_top() -> void:
 			_phase_bar.max_value = 1.0
 			_phase_bar.step = 0.001
 			turn_box.add_child(_phase_bar)
+			# the sky in the next turns: plan around day, night and the eclipse
+			_sky_row = HBoxContainer.new()
+			_sky_row.alignment = BoxContainer.ALIGNMENT_CENTER
+			_sky_row.add_theme_constant_override("separation", 6)
+			_sky_row.tooltip_text = "יום: אתם חזקים יותר. לילה: האויב חזק יותר. ליקוי: כל הכוחות נטענים."
+			_sky_row.mouse_filter = Control.MOUSE_FILTER_PASS
+			turn_box.add_child(_sky_row)
+			for k in 6:
+				var l := UiKit.label("", 22 if k == 0 else 17, UiKit.TEXT, 700)
+				_sky_row.add_child(l)
+			_sky_label = UiKit.label("", 14, UiKit.TEXT_SOFT, 600)
+			turn_box.add_child(_sky_label)
 			var strip := _strip(turn_box)
 			strip.custom_minimum_size = Vector2(250, 0)
 			center.add_child(strip)
@@ -165,7 +183,21 @@ func _build_top() -> void:
 			bar.add_child(mid)
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 4)
+	btns.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_sound_btn = UiKit.button("🔊", UiKit.BUTTON_STEEL, 22)
+	_sound_btn.custom_minimum_size = Vector2(52, 52)
+	_sound_btn.tooltip_text = "צלילים ומוזיקה"
+	_sound_btn.pressed.connect(func():
+		var on := Sfx.volume > 0.0 or Music.volume > 0.0
+		Sfx.volume = 0.0 if on else 0.8
+		Voice.volume = 0.0 if on else 0.7
+		Music.set_volume(0.0 if on else 0.45)
+		_sound_btn.text = "🔇" if on else "🔊"
+		if not on:
+			Sfx.play("coin"))
+	btns.add_child(_sound_btn)
 	var help := UiKit.button("?", UiKit.BUTTON_STEEL, 26)
+	help_button = help
 	help.custom_minimum_size = Vector2(52, 52)
 	help.tooltip_text = "איך משחקים"
 	help.pressed.connect(func(): help_pressed.emit())
@@ -319,6 +351,11 @@ func show_unit_info(u: BUnit) -> void:
 	nv.add_child(UiKit.label("ממלכת השמש" if u.team == 0 else "אויב · ממלכת האופל", 14, UiKit.ACCENT if u.team == 1 else UiKit.TEXT_SOFT))
 	head.add_child(nv)
 	_info_box.add_child(head)
+	if not u.structure and HeroTexts.style_of(u.kind) != "":
+		var st := UiKit.label("✦ " + HeroTexts.style_of(u.kind), 14, UiKit.GOLD, 600)
+		st.custom_minimum_size = Vector2(230, 0)
+		st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_info_box.add_child(st)
 	if not u.structure:
 		var role := UiKit.label(HeroTexts.role_of(u.kind), 15, UiKit.TEXT)
 		role.custom_minimum_size = Vector2(230, 0)
@@ -386,8 +423,7 @@ func show_turn_summary(n: int, s: Dictionary, b: Battle) -> void:
 	if s.get("lost", 0) > 0:
 		lines.append([("איבדתם גיבור אחד" if s["lost"] == 1 else "איבדתם %d גיבורים" % s["lost"]), UiKit.ACCENT])
 	lines.append(["◆ +%d אנרגיה" % int(s.get("energy", 0)), Style.CRYSTAL])
-	lines.append(["נזק שגרמתם: %d" % int(s.get("damage_done", 0)), UiKit.TEXT])
-	lines.append(["נזק שספגתם: %d" % int(s.get("damage_taken", 0)), UiKit.TEXT_SOFT])
+
 	for st in s.get("structures", []):
 		var what: String = "מגדל" if st[0] == "tower" else "שער"
 		lines.append([("%s של האויב נפל!" % what) if st[1] == 1 else ("%s שלנו נפל!" % what), UiKit.ACCENT])
@@ -398,7 +434,7 @@ func show_turn_summary(n: int, s: Dictionary, b: Battle) -> void:
 	var tw := _summary.create_tween()
 	_summary.modulate.a = 0.0
 	tw.tween_property(_summary, "modulate:a", 1.0, 0.25)
-	tw.tween_interval(5.0)
+	tw.tween_interval(3.5)
 	tw.tween_property(_summary, "modulate:a", 0.0, 0.6)
 
 
@@ -510,6 +546,8 @@ func set_phase(phase: int, turn: int, _t: float) -> void:
 func refresh(bs: BattleScreen) -> void:
 	if battle == null:
 		return
+	if _name_labels.size() > 1 and bs.rival.has("rival_name"):
+		_name_labels[1].text = "☾ " + String(bs.rival["rival_name"])
 	var planning := bs.phase == BattleScreen.Phase.PLAN
 	var e: float = battle.energy[viewer]
 	var free := bs.free_energy()
@@ -527,6 +565,16 @@ func refresh(bs: BattleScreen) -> void:
 		_:
 			_phase_label.text = ""
 	_speed_btn.text = "▶ רגיל" if bs.speed > 1.0 else "⏩ מהר"
+	var now_turn := int(battle.time / Battle.TURN)
+	var icons := { "day": "☀", "night": "☾", "eclipse": "◐" }
+	var cols := { "day": UiKit.GOLD, "night": Color(0.7, 0.7, 1.0), "eclipse": Color(1.0, 0.5, 0.4) }
+	for k in _sky_row.get_child_count():
+		var sky := battle.sky_at(now_turn + k)
+		var l: Label = _sky_row.get_child(k)
+		l.text = icons[sky]
+		l.add_theme_color_override("font_color", cols[sky])
+		l.modulate.a = 1.0 if k == 0 else 0.65
+	_sky_label.text = {"day": "יום · אתם חזקים יותר", "night": "לילה · האויב חזק יותר", "eclipse": "ליקוי · כל הכוחות נטענו"}[battle.sky()]
 	_execute.visible = planning
 	_action_box.visible = bs.phase in [BattleScreen.Phase.ACTION, BattleScreen.Phase.SCENE, BattleScreen.Phase.ARENA]
 	_action_box.modulate.a = 1.0

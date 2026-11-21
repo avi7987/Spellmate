@@ -78,7 +78,8 @@ static func make(size: String, seed_value: int = 7, biome: String = "meadow") ->
 	]
 	for sh in shrines_half:
 		put.call(sh["pos"].x, sh["pos"].y, Chess.Terrain.SHRINE)
-	var camp_half := Vector2i(cx, mid - 2)
+	# the monster camp guards the side of the river, far from the palace gate
+	var camp_half := Vector2i(w - 2, mid - 1)
 	put.call(camp_half.x, camp_half.y, Chess.Terrain.PLAIN)
 	# Mirror the bottom half onto the top half.
 	for y in mid:

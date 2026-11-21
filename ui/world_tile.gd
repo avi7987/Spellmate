@@ -72,6 +72,8 @@ func _rule_text() -> String:
 		return "%s: שורפת" % n
 	if sp.has("heal"):
 		return "%s: מרפאים" % n
+	if sp.get("effect", "") == "shield":
+		return "%s: מגן" % n
 	if sp.has("effect"):
 		return "%s: זעם מתוק" % n
 	var s := float(sp.get("speed", 1.0))

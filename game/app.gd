@@ -80,9 +80,27 @@ func apply_world(biome: Dictionary) -> void:
 	var sky := _env.sky.sky_material as ProceduralSkyMaterial
 	sky.sky_top_color = Color.html(c["sky"]).darkened(0.3) if c.has("sky") else Color(0.25, 0.3, 0.45)
 	sky.sky_horizon_color = Color.html(c["sky"]) if c.has("sky") else Color(0.6, 0.55, 0.5)
-	_env.fog_enabled = biome.get("props", "") in ["dead_trees", "mushrooms"]
+	_env.fog_enabled = biome.get("props", "") in ["dead_trees", "mushrooms", "graves"]
 	_env.fog_light_color = Color.html(c.get("sky", "#808080"))
 	_env.fog_density = 0.008
+
+
+## Day / night / eclipse light during a battle.
+func set_sky(sky_name: String, biome: Dictionary) -> void:
+	var c: Dictionary = biome.get("colors", {})
+	var day_sun: Color = Color.html(c["sun"]) if c.has("sun") else Style.MOOD[0]["sun"]
+	var day_amb: Color = Color.html(c["ambient"]) if c.has("ambient") else Style.MOOD[0]["ambient"]
+	var targets := { "sun": day_sun, "energy": 1.0, "amb": day_amb, "amb_e": 0.5 }
+	match sky_name:
+		"night":
+			targets = { "sun": Color(0.55, 0.6, 1.0), "energy": 0.45, "amb": Color(0.35, 0.3, 0.6), "amb_e": 0.55 }
+		"eclipse":
+			targets = { "sun": Color(1.0, 0.45, 0.3), "energy": 0.3, "amb": Color(0.45, 0.2, 0.3), "amb_e": 0.5 }
+	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_sun, "light_color", targets["sun"], 1.5)
+	tw.tween_property(_sun, "light_energy", targets["energy"], 1.5)
+	tw.tween_property(_env, "ambient_light_color", targets["amb"], 1.5)
+	tw.tween_property(_env, "ambient_light_energy", targets["amb_e"], 1.5)
 
 
 func _swap(screen: Node) -> void:
@@ -116,10 +134,13 @@ func start_battle(size: String, autoplay: bool = false, biome: String = "") -> v
 		ai_levels[id] = int(arena["ai_level"])
 	var bs := BattleScreen.new()
 	bs.camera_rig = camera_rig
+	bs.app = self
 	_swap(bs)
 	bs.scene_mode = profile.settings.get("scenes", "always")
+	bs.rival = arena
 	bs.start(size, profile.deck, profile.levels(), profile.enemy_deck(rng), int(arena["ai"]), ai_levels, biome)
 	bs.battle.apply_bonuses(0, profile.palace_bonus(), profile.start_energy_bonus())
+	bs.battle.loadout[0] = profile.settings.get("powers", {}).duplicate()
 	if autoplay:
 		bs.autoplay = BattleAI.new(0, 2)
 	bs.finished.connect(_on_battle_finished)

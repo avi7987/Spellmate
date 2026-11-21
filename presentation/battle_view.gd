@@ -242,6 +242,15 @@ func _process(delta: float) -> void:
 			_add_view(u, true)
 		var v = _views[u.id]
 		var seen := u.team == viewer or battle.is_visible(viewer, u.pos)
+		if u.team != viewer and u.style() == "stealth" and battle.time <= u.revealed_until:
+			pass
+		elif u.team != viewer and u.style() == "stealth":
+			var near := false
+			for f: BUnit in battle.units:
+				if f.team == viewer and not f.structure and f.pos.distance_to(u.pos) <= 1.6:
+					near = true
+					break
+			seen = seen and near
 		if v is UnitView:
 			v.visible = seen
 			v.follow(u, to_world(u.pos), now, delta)
@@ -351,6 +360,95 @@ func _scenery() -> void:
 				n.position = to_world(spot) + Vector3(0, 0, 0)
 				n.scale = Vector3.ONE * 0.45
 				add_child(n)
+
+
+# ------------------------------------------------------------------ plan lines
+
+var _plan_lines: MeshInstance3D
+var _reach_rings: Array = []
+
+
+## While planning: an arrow from every hero you gave an order to where it is
+## going (green = walk, red = attack), and for the chosen heroes a ring that
+## shows how far they can walk in one turn.
+func draw_plans(selected: Array, turn_seconds: float) -> void:
+	if _plan_lines == null:
+		_plan_lines = MeshInstance3D.new()
+		_plan_lines.mesh = ImmediateMesh.new()
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.vertex_color_use_as_albedo = true
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.no_depth_test = true
+		_plan_lines.material_override = m
+		_plan_lines.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_plan_lines)
+	_plan_lines.visible = true
+	var im := _plan_lines.mesh as ImmediateMesh
+	im.clear_surfaces()
+	var any := false
+	for u: BUnit in battle.units:
+		if u.team != viewer or u.structure:
+			continue
+		var goal := Vector2(-1, -1)
+		var col := Color(0.45, 1.0, 0.45, 0.9)
+		if u.order == "move":
+			goal = u.order_pos
+		elif u.order == "attack" and battle.unit(u.target_id) != null:
+			goal = battle.unit(u.target_id).pos
+			col = Color(1.0, 0.35, 0.25, 0.95)
+		if goal.x < 0:
+			continue
+		if not any:
+			im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+			any = true
+		var a := to_world(u.pos) + Vector3(0, 0.12, 0)
+		var b := to_world(goal) + Vector3(0, 0.12, 0)
+		var dir := (b - a)
+		if dir.length() < 0.3:
+			continue
+		var n := dir.normalized()
+		var side := Vector3(-n.z, 0, n.x) * (0.09 if u.id in selected else 0.06)
+		var tip := b - n * 0.45
+		for t in [[a - side, a + side, tip + side], [a - side, tip + side, tip - side],
+				[tip - side * 3.5, tip + side * 3.5, b]]:
+			for v in t:
+				im.surface_set_color(col)
+				im.surface_add_vertex(v)
+	if any:
+		im.surface_end()
+	# reach rings for the chosen heroes
+	var i := 0
+	for id in (selected if selected.size() == 1 else []):
+		var u := battle.unit(id)
+		if u == null or u.speed <= 0.0:
+			continue
+		if i >= _reach_rings.size():
+			var r := MeshInstance3D.new()
+			var t := TorusMesh.new()
+			t.inner_radius = 0.97
+			t.outer_radius = 1.0
+			t.rings = 64
+			r.mesh = t
+			r.material_override = Style.glow(Color(0.6, 1.0, 0.6), 0.7)
+			r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(r)
+			_reach_rings.append(r)
+		var ring: MeshInstance3D = _reach_rings[i]
+		var reach := u.speed * turn_seconds * (1.15 if battle.favoured_team() == u.team else 1.0)
+		ring.visible = true
+		ring.position = to_world(u.pos) + Vector3(0, 0.06, 0)
+		ring.scale = Vector3(reach, 0.25, reach)
+		i += 1
+	for j in range(i, _reach_rings.size()):
+		_reach_rings[j].visible = false
+
+
+func hide_plans() -> void:
+	if _plan_lines != null:
+		_plan_lines.visible = false
+	for r in _reach_rings:
+		r.visible = false
 
 
 # ------------------------------------------------------------------ world things
@@ -485,6 +583,11 @@ func play_events(events: Array) -> void:
 				Effects.burst(_fx_root, to_world(e["pos"]) + Vector3(0, 1.0, 0), Style.CRYSTAL, 10, 1.4, 0.05)
 				if e["team"] == viewer:
 					_float_text(to_world(e["pos"]), "+1 ◆", Style.CRYSTAL, 0.8)
+			"chain":
+				_shot(to_world(e["from"]) + Vector3(0, 0.8, 0), to_world(e["to"]) + Vector3(0, 0.6, 0), Color(0.75, 0.85, 1.0), 0.1, false)
+			"trait":
+				if e.get("trait", "") == "momentum":
+					Effects.shockwave(_fx_root, to_world(e["pos"]) + Vector3(0, 0.05, 0), Color(1, 0.9, 0.5), 1.2)
 			"monster_slain":
 				Effects.pillar(_fx_root, to_world(e["pos"]), UiKit.GOLD, 4.0, 0.9)
 				_float_text(to_world(e["pos"]), "+%d ◆" % int(BattleData.biomes()["monster_reward"]["energy"]), Style.CRYSTAL, 1.2)
@@ -575,9 +678,9 @@ func _area_fx(id: String, pos: Vector2, radius: float, from: Vector2) -> void:
 	var d := BattleData.spell(id)
 	if d.is_empty():
 		for h in BattleData.hero_ids():
-			var ab: Dictionary = BattleData.hero(h).get("ability", {})
-			if ab.get("id", "") == id:
-				d = ab
+			for ab in BattleData.hero(h).get("abilities", []):
+				if ab.get("id", "") == id:
+					d = ab
 	var effect: String = d.get("effect", "")
 	var kind: String = d.get("type", "")
 	Effects.shockwave(_fx_root, at + Vector3(0, 0.05, 0), _fx_color(id, effect, kind), radius)
